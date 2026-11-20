@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#101514">
+  <title>3Dmaps — офлайн-генератор</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <aside id="panel">
+      <header class="brand">
+        <div class="mark" aria-hidden="true">
+          <svg viewBox="0 0 64 64" width="42" height="42"><rect width="64" height="64" rx="16" fill="#101514"/><path d="M32 8C22 8 14 16 14 26c0 13 18 29 18 29s18-16 18-29C50 16 42 8 32 8Zm0 24a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z" fill="#5ee29b"/></svg>
+        </div>
+        <div class="brand-copy">
+          <h1><span data-i18n="brand.title">3Dmaps</span> <span class="badge" data-i18n="brand.badge">offline</span></h1>
+          <p class="sub" data-i18n="brand.sub">Установил — и пользуешься. Выдели участок, получи OBJ/GLB.</p>
+        </div>
+        <select id="langSelect" class="lang-select" aria-label="Language">
+          <option value="ru">RU</option>
+          <option value="en">EN</option>
+        </select>
+        <button class="icon-btn" id="helpBtn" aria-label="Справка" data-i18n-aria="help.button">?</button>
+      </header>
+
+      <section class="section compact">
+        <label for="search" data-i18n="search.label">Найти место</label>
+        <div class="search">
+          <input id="search" type="text" placeholder="Город, адрес или координаты" autocomplete="off" data-i18n-placeholder="search.placeholder">
+          <button class="ghost" id="findBtn" data-i18n="search.find">Найти</button>
+        </div>
+        <div class="row gap8 mt8">
+          <button class="ghost" id="locateBtn" data-i18n="search.locate">Моё место</button>
+          <button class="ghost" id="clearBtn" data-i18n="search.clear">Очистить</button>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-head">
+          <label data-i18n="zone.label">Зона</label>
+          <span class="pill" id="areaPill">0 км²</span>
+        </div>
+        <div class="bbox" id="bbox">Рамка не выбрана</div>
+        <div class="hint" id="areaHint">Тяни углы и стороны. Центр или любое место внутри рамки — перемещение.</div>
+        <div class="preset-row mt8">
+          <button class="preset" id="preset05Btn" title="Квадрат 0.5 × 0.5 км">0.5</button>
+          <button class="preset" id="preset1Btn" title="Квадрат 1 × 1 км">1</button>
+          <button class="preset" id="preset2Btn" title="Квадрат 2 × 2 км">2</button>
+          <button class="preset" id="preset3Btn" title="Квадрат 3 × 3 км">3</button>
+        </div>
+        <details class="zone-advanced mt8">
+          <summary data-i18n="zone.advanced">Точные размеры</summary>
+          <div class="zone-grid mt8">
+            <div class="field">
+              <label for="zoneWidth" data-i18n="zone.width">Ширина, км</label>
+              <input id="zoneWidth" type="number" min="0.1" max="10" step="0.05" value="1" inputmode="decimal">
+            </div>
+            <div class="field">
+              <label for="zoneHeight" data-i18n="zone.height">Высота, км</label>
+              <input id="zoneHeight" type="number" min="0.1" max="10" step="0.05" value="1" inputmode="decimal">
+            </div>
+          </div>
+          <div class="zone-grid mt8">
+            <div class="field">
+              <label for="zoneLat" data-i18n="zone.lat">Широта центра</label>
+              <input id="zoneLat" type="number" min="-85" max="85" step="0.000001" inputmode="decimal" placeholder="47.222000">
+            </div>
+            <div class="field">
+              <label for="zoneLon" data-i18n="zone.lon">Долгота центра</label>
+              <input id="zoneLon" type="number" min="-180" max="180" step="0.000001" inputmode="decimal" placeholder="39.710000">
+            </div>
+          </div>
+          <div class="row gap8 mt8">
+            <button class="ghost" id="zoneApplyBtn" data-i18n="zone.apply">Применить зону</button>
+            <button class="ghost" id="zoneCenterBtn" data-i18n="zone.center">В центр карты</button>
+          </div>
+        </details>
+      </section>
+
+      <section class="section">
+        <label for="name" data-i18n="name.label">Название</label>
+        <input id="name" type="text" value="zone" maxlength="60" autocomplete="off">
+        <div class="row gap10 mt8">
+          <div class="field">
+            <label for="spacing" data-i18n="spacing.label">Шаг рельефа, м</label>
+            <select id="spacing">
+              <option value="10">10</option>
+              <option value="15">15</option>
+              <option value="20">20</option>
+              <option value="25">25</option>
+              <option value="30" selected>30</option>
+              <option value="45">45</option>
+              <option value="60">60</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="texture" data-i18n="texture.label">Текстура</label>
+            <select id="texture">
+              <option value="512">512</option>
+              <option value="1024">1024</option>
+              <option value="2048" selected>2048</option>
+            </select>
+          </div>
+        </div>
+        <div class="section-head mt12"><b data-i18n="terrain.heading">Настройки рельефа</b></div>
+        <div class="quality-row mt8" role="group" aria-label="Quality" data-i18n-aria="quality.label">
+          <button class="quality" type="button" data-quality="fast" data-i18n="quality.fast">Быстро</button>
+          <button class="quality" type="button" data-quality="balanced" data-i18n="quality.balanced">Баланс</button>
+          <button class="quality" type="button" data-quality="detail" data-i18n="quality.detail">Детально</button>
+        </div>
+        <div class="row gap10 mt8">
+          <div class="field">
+            <label for="heightScale" data-i18n="height.label">Высота рельефа</label>
+            <select id="heightScale">
+              <option value="0.5">0.5×</option>
+              <option value="0.75">0.75×</option>
+              <option value="1" selected>1×</option>
+              <option value="1.25">1.25×</option>
+              <option value="1.5">1.5×</option>
+              <option value="2">2×</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="smoothing" data-i18n="smoothing.label">Сглаживание</label>
+            <select id="smoothing">
+              <option value="0" selected data-i18n="smoothing.none">Нет</option>
+              <option value="1" data-i18n="smoothing.light">Лёгкое</option>
+              <option value="2" data-i18n="smoothing.strong">Сильное</option>
+            </select>
+          </div>
+        </div>
+        <div class="hint mt8" data-i18n="terrain.hint">Высота усиливает или ослабляет рельеф относительно средней точки; сглаживание убирает шум DEM.</div>
+        <div class="checks">
+          <label><input type="checkbox" id="satellite" checked> <span data-i18n="layer.satellite">Спутник</span></label>
+          <label><input type="checkbox" id="labels" checked> <span data-i18n="layer.labels">Подписи</span></label>
+          <label><input type="checkbox" id="buildings" checked> <span data-i18n="layer.buildings">Здания</span></label>
+          <label><input type="checkbox" id="roads" checked> <span data-i18n="layer.roads">Дороги</span></label>
+          <label><input type="checkbox" id="railways" checked> <span data-i18n="layer.railways">Ж/д</span></label>
+        </div>
+        <div class="notice" data-i18n="notice.local">Всё считается на телефоне. Нужен только интернет для OSM, высот и спутника. Google-данные не используются.</div>
+        <button class="primary wide mt12" id="generateBtn" disabled data-i18n="generate.button">Сгенерировать 3D-участок</button>
+      </section>
+
+      <section id="status" hidden>
+        <div class="status-head"><b id="statusTitle">Генерация</b><span id="percent">0%</span></div>
+        <div class="progress"><div id="bar"></div></div>
+        <div class="hint" id="statusMsg">Подготовка</div>
+        <div class="error" id="errorMsg"></div>
+      </section>
+
+      <section id="result" hidden>
+        <div class="section-head"><b data-i18n="result.done">Готово</b><span class="pill" id="resultPill"></span></div>
+        <div class="result-summary" id="resultSummary" hidden></div>
+        <div class="result-actions">
+          <button class="primary" id="saveAllBtn" data-i18n="result.saveAll">Сохранить всё</button>
+          <button class="ghost" id="previewBtn" data-i18n="result.preview">3D-просмотр</button>
+        </div>
+        <div class="result-actions secondary">
+          <button class="ghost" id="saveGlbBtn" disabled data-i18n="result.glb">Только GLB</button>
+          <button class="ghost" id="saveObjBtn" disabled data-i18n="result.obj">OBJ + MTL</button>
+        </div>
+        <div id="previewWrap" hidden>
+          <canvas id="previewCanvas"></canvas>
+          <div class="hint" id="previewHint" data-i18n="result.previewHint">Крути пальцем, масштаб — двумя пальцами.</div>
+        </div>
+        <div id="resultWarnings" class="warnings" hidden></div>
+        <div id="files" class="files"></div>
+      </section>
+
+      <footer class="footer" data-i18n="footer.licenses">
+        OSM © contributors, ODbL. Спутник Sentinel-2 cloudless, EOX, CC BY-NC-SA.
+      </footer>
+    </aside>
+
+    <main id="mapwrap">
+      <div id="map">
+        <div id="world">
+          <div id="tiles"></div>
+          <div id="selection" hidden>
+            <span class="zone-handle" data-handle="nw" aria-hidden="true"></span>
+            <span class="zone-handle" data-handle="n" aria-hidden="true"></span>
+            <span class="zone-handle" data-handle="ne" aria-hidden="true"></span>
+            <span class="zone-handle" data-handle="e" aria-hidden="true"></span>
+            <span class="zone-handle" data-handle="se" aria-hidden="true"></span>
+            <span class="zone-handle" data-handle="s" aria-hidden="true"></span>
+            <span class="zone-handle" data-handle="sw" aria-hidden="true"></span>
+            <span class="zone-handle" data-handle="w" aria-hidden="true"></span>
+            <span class="zone-center" aria-hidden="true"></span>
+          </div>
+          <div id="selectionTag" class="selection-tag" hidden></div>
+        </div>
+        <div id="mapLoading" class="map-loading" data-i18n="map.loading">Карта загружается…</div>
+        <div id="mapHint" class="map-hint" data-i18n="map.hint.pan">Тяни карту · «Рамка» — выделить зону</div>
+        <div class="map-controls">
+          <button id="selectBtn" title="Выделить рамку" data-i18n-title="map.select">Рамка</button>
+          <button id="zoomInBtn" title="Приблизить">+</button>
+          <button id="zoomOutBtn" title="Отдалить">−</button>
+        </div>
+        <div class="map-footer">
+          <div class="scalebar">
+            <span class="scalebar-line" id="scalebarLine"></span>
+            <span id="scalebarText">1 км</span>
+          </div>
+          <div class="map-meta">
+            <span id="mapZoom">z13</span>
+            <span id="mapCoords">47.22200, 39.71000</span>
+          </div>
+          <div class="attribution">© OpenStreetMap contributors · ODbL</div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div id="help" class="modal" hidden>
+    <div class="modal-card">
+      <div class="modal-head"><h2 data-i18n="help.title">Как это работает</h2><button class="icon-btn" id="helpClose" aria-label="Закрыть" data-i18n-aria="help.close">×</button></div>
+      <p data-i18n="help.intro">3Dmaps работает прямо в приложении, без сервера и настройки.</p>
+      <ol>
+        <li data-i18n="help.step1">Найди место или подвинь карту.</li>
+        <li data-i18n="help.step2">Нажми «Рамка» и проведи прямоугольник. Потом тяни его за углы или стороны, а за центральную точку или изнутри — перемещай. Пресеты 0.5–3 км задают квадрат.</li>
+        <li data-i18n="help.step3">На карте видны размеры зоны, масштаб и координаты центра.</li>
+        <li data-i18n="help.step4">Выбери шаг и настройки рельефа, текстуру и слои, нажми «Сгенерировать».</li>
+        <li data-i18n-html="help.step5">Сохрани всё или только GLB / OBJ+MTL в <b>Download/3Dmaps/название</b>. OBJ сохраняется с расширением <b>.obj</b>, MTL — <b>.mtl</b>.</li>
+      </ol>
+      <p class="hint" data-i18n="help.limit">Нужен интернет: карта, OSM, DEM Terrarium и спутник EOX загружаются из сети. Генерация и файлы — локально. Максимальная зона — 15 × 15 км (225 км²). Большие зоны считать дольше; в плотной застройке лучше 2–4 км².</p>
+      <p class="hint" data-i18n="help.data">Данные: OpenStreetMap ODbL; Terrarium DEM; Sentinel-2 cloudless EOX CC BY-NC-SA 4.0 (некоммерческое использование).</p>
+    </div>
+  </div>
+
+  <script src="core.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

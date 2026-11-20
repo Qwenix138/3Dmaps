@@ -1,0 +1,42 @@
+name: build
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: 3dmapgen-linux-x86_64
+          - os: windows-latest
+            artifact: 3dmapgen-windows-x86_64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+          python -m pip install .
+      - name: Test
+        run: python -m pytest -q
+      - name: Build CLI
+        run: python -m PyInstaller --noconfirm --clean --onefile --name 3dmapgen --collect-data mapgen packaging/launcher_cli.py
+      - name: Build web
+        run: python -m PyInstaller --noconfirm --clean --onefile --name 3dmapgen-web --collect-data mapgen packaging/launcher_web.py
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/*
+          if-no-files-found: error

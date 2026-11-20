@@ -1,0 +1,574 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101514">
+  <title>3Dmaps — генератор 3D-карт</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css">
+  <style>
+    :root {
+      --bg: #101514;
+      --panel: #18201d;
+      --panel2: #202b27;
+      --line: #33413a;
+      --text: #edf4ef;
+      --muted: #9fb1a7;
+      --green: #5ee29b;
+      --green2: #2fbb75;
+      --amber: #f2c66d;
+      --red: #ff7d7d;
+      --shadow: 0 24px 70px rgba(0,0,0,.35);
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    body { display: flex; overflow: hidden; }
+    button, input, select { font: inherit; }
+    #sidebar { width: 400px; min-width: 400px; height: 100%; overflow-y: auto; background: radial-gradient(900px 420px at 80% -10%, rgba(46,118,83,.18), transparent 60%), linear-gradient(180deg, #18201d, #111715); border-right: 1px solid var(--line); padding: 18px 18px 28px; scrollbar-width: thin; scrollbar-color: #33413a transparent; }
+    #map { flex: 1; height: 100%; background: #1a2420; }
+    .brand { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 16px; }
+    .mark { flex: 0 0 auto; filter: drop-shadow(0 8px 18px rgba(94,226,155,.15)); }
+    .brand-copy { min-width: 0; flex: 1; }
+    h1 { font-size: 22px; line-height: 1.1; margin: 2px 0 3px; letter-spacing: -.02em; }
+    .sub { color: var(--muted); margin: 0; font-size: 12px; max-width: 285px; }
+    .badge { display: inline-block; color: var(--green); border: 1px solid #2f5d46; background: #152b20; padding: 2px 7px; border-radius: 999px; font-size: 10px; margin-left: 5px; vertical-align: 2px; letter-spacing: .02em; }
+    .lang-select { width: auto; min-width: 54px; margin-left: auto; padding: 7px 8px; border-radius: 9px; background: #202b27; border: 1px solid var(--line); color: var(--text); font-size: 12px; font-weight: 700; }
+    label { display: block; color: var(--muted); font-size: 12px; margin: 11px 0 5px; }
+    input[type=text], input[type=number], select { width: 100%; background: #0d1311; color: var(--text); border: 1px solid var(--line); border-radius: 9px; padding: 10px 11px; outline: none; }
+    input:focus, select:focus { border-color: var(--green2); }
+    .row { display: flex; gap: 8px; }
+    .row > * { flex: 1; min-width: 0; }
+    .section { border: 1px solid rgba(51,65,58,.72); border-radius: 14px; background: linear-gradient(180deg, rgba(25,35,30,.72), rgba(13,20,17,.4)); padding: 14px; margin-top: 12px; }
+    .section.compact { border: 0; background: transparent; padding: 0; margin-top: 0; }
+    .section-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .section-head label { margin: 0; }
+    button { border: 0; border-radius: 9px; padding: 10px 13px; background: var(--green); color: #07110c; font-weight: 700; cursor: pointer; transition: background .16s ease, color .16s ease, transform .08s ease; }
+    button:hover { background: #79efad; }
+    button:active { transform: translateY(1px); }
+    button:disabled { opacity: .42; cursor: not-allowed; transform: none; }
+    button.ghost { background: #24322c; color: var(--text); font-weight: 600; border: 1px solid var(--line); }
+    button.ghost:hover { background: #2d3e36; }
+    button.primary { background: var(--green); color: #07110c; }
+    button.wide { width: 100%; }
+    .hint { color: var(--muted); font-size: 12px; }
+    .bbox { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: var(--green); background: #0c1510; border: 1px solid #253c30; border-radius: 8px; padding: 9px; word-break: break-all; min-height: 37px; }
+    .pill { color: var(--green); background: #12261c; border: 1px solid #2b513d; border-radius: 999px; padding: 2px 8px; font-size: 11px; white-space: nowrap; }
+    .pill.warn { color: var(--amber); background: #2b2214; border-color: #5a4622; }
+    .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 9px; }
+    .checks label { display: flex; gap: 7px; align-items: center; margin: 0; color: var(--text); background: #0e1512; border: 1px solid #26352e; border-radius: 8px; padding: 8px; font-size: 12px; cursor: pointer; }
+    input[type=checkbox] { accent-color: var(--green); width: 15px; height: 15px; }
+    .quality-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px; }
+    .quality { padding: 8px 4px; border-radius: 8px; border: 1px solid var(--line); background: #0e1512; color: var(--muted); font-size: 12px; font-weight: 650; }
+    .quality:hover { background: #1a2821; color: var(--text); }
+    .quality.active { background: rgba(94,226,155,.15); border-color: var(--green2); color: var(--green); box-shadow: inset 0 0 0 1px rgba(94,226,155,.12); }
+    .notice { background: #2b2214; border: 1px solid #5a4622; color: #f2d59a; padding: 9px 10px; border-radius: 9px; font-size: 11px; margin-top: 10px; }
+    #status { display: none; margin-top: 16px; background: #0e1512; border: 1px solid var(--line); border-radius: 11px; padding: 12px; }
+    .status-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+    .status-head b { font-size: 13px; }
+    #percent { color: var(--muted); font-size: 12px; }
+    .progress { height: 7px; background: #24332c; border-radius: 99px; overflow: hidden; margin: 9px 0; }
+    #bar { height: 100%; width: 0; background: linear-gradient(90deg, var(--green2), var(--green)); transition: width .25s; }
+    #msg { color: var(--muted); font-size: 12px; }
+    .error { color: var(--red); font-size: 12px; white-space: pre-wrap; }
+    #result { display: none; margin-top: 16px; }
+    .result-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin: 10px 0 4px; }
+    .stat { display: flex; flex-direction: column; gap: 2px; padding: 9px 10px; border: 1px solid #25372e; border-radius: 9px; background: #0e1512; }
+    .stat span { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .04em; }
+    .stat b { color: var(--text); font-size: 14px; }
+    .warnings { margin: 10px 0; padding: 9px 10px; border: 1px solid #5a4622; border-radius: 9px; background: #2b2214; color: #f2d59a; font-size: 11px; }
+    .warnings ul { margin: 5px 0 0; padding-left: 17px; }
+    .file { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid #25332c; font-size: 12px; }
+    .file a { color: var(--green); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .file span { color: var(--muted); white-space: nowrap; font-size: 10px; }
+    .view-link { display: inline-block; margin-top: 8px; color: var(--green); font-weight: 650; text-decoration: none; }
+    .search { display: flex; gap: 6px; margin-bottom: 4px; }
+    .search input { flex: 1; }
+    .footer { color: #71837a; font-size: 10px; margin-top: 20px; line-height: 1.5; }
+    .leaflet-container { font: inherit; }
+    .leaflet-control-attribution { background: rgba(10,15,12,.82) !important; color: #aabcb1 !important; }
+    .leaflet-control-attribution a { color: #7fe8b1 !important; }
+    .leaflet-bar a { background: #18201d; color: #edf4ef; border-bottom-color: #33413a; }
+    .leaflet-bar a:hover { background: #27372f; }
+    @media (max-width: 800px) {
+      body { flex-direction: column; overflow: auto; }
+      #map { order: -1; height: 46vh; min-height: 300px; }
+      #sidebar { width: 100%; min-width: 0; height: auto; border-right: 0; border-top: 1px solid var(--line); }
+    }
+    @media (max-width: 380px) {
+      .checks, .result-summary { grid-template-columns: 1fr; }
+      h1 { font-size: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <aside id="sidebar">
+    <header class="brand">
+      <div class="mark" aria-hidden="true">
+        <svg viewBox="0 0 64 64" width="42" height="42"><rect width="64" height="64" rx="16" fill="#101514"/><path d="M32 8C22 8 14 16 14 26c0 13 18 29 18 29s18-16 18-29C50 16 42 8 32 8Zm0 24a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z" fill="#5ee29b"/></svg>
+      </div>
+      <div class="brand-copy">
+        <h1><span data-i18n="brand.title">3Dmaps</span> <span class="badge">v{{ version }}</span></h1>
+        <p class="sub" data-i18n="brand.sub">Выдели участок на карте — получишь рельеф, серые здания, дороги и железные дороги в OBJ/GLB для Blender.</p>
+      </div>
+      <select id="langSelect" class="lang-select" aria-label="Language">
+        <option value="ru">RU</option>
+        <option value="en">EN</option>
+      </select>
+    </header>
+
+    <section class="section compact">
+      <label for="search" data-i18n="search.label">Найти место</label>
+      <div class="search">
+        <input id="search" type="text" placeholder="Город, адрес, координаты" data-i18n-placeholder="search.placeholder">
+        <button class="ghost" id="find" data-i18n="search.find">Найти</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button class="ghost" id="locate" data-i18n="search.locate">Моё место</button>
+        <button class="ghost" id="clear" data-i18n="search.clear">Очистить</button>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head"><label data-i18n="zone.label">Выделенная зона</label><span class="pill" id="area-pill">0 км²</span></div>
+      <div class="bbox" id="bbox">Рамка не выбрана</div>
+      <div class="hint" id="area">Выдели прямоугольник, чтобы задать зону.</div>
+      <div class="row" style="margin-top:8px">
+        <button class="ghost" id="preset05" data-size="0.5">0.5</button>
+        <button class="ghost" id="preset1" data-size="1">1</button>
+        <button class="ghost" id="preset2" data-size="2">2</button>
+        <button class="ghost" id="preset3" data-size="3">3</button>
+      </div>
+    </section>
+
+    <section class="section">
+      <label for="name" data-i18n="name.label">Название</label>
+      <input id="name" type="text" value="zone" maxlength="60">
+      <div class="row">
+        <div>
+          <label for="spacing" data-i18n="spacing.label">Шаг рельефа, м</label>
+          <select id="spacing">
+            <option value="10">10</option>
+            <option value="15">15</option>
+            <option value="20">20</option>
+            <option value="30" selected>30</option>
+            <option value="45">45</option>
+            <option value="60">60</option>
+          </select>
+        </div>
+        <div>
+          <label for="texture" data-i18n="texture.label">Текстура</label>
+          <select id="texture">
+            <option value="1024">1024</option>
+            <option value="2048">2048</option>
+            <option value="4096" selected>4096</option>
+            <option value="8192">8192</option>
+          </select>
+        </div>
+      </div>
+      <div class="section-head" style="margin-top:12px"><b data-i18n="terrain.heading">Настройки рельефа</b></div>
+      <div class="quality-row" role="group" aria-label="Quality">
+        <button class="quality" type="button" data-quality="fast" data-i18n="quality.fast">Быстро</button>
+        <button class="quality" type="button" data-quality="balanced" data-i18n="quality.balanced">Баланс</button>
+        <button class="quality" type="button" data-quality="detail" data-i18n="quality.detail">Детально</button>
+      </div>
+      <div class="row">
+        <div>
+          <label for="height_scale" data-i18n="height.label">Высота рельефа</label>
+          <select id="height_scale">
+            <option value="0.5">0.5×</option>
+            <option value="0.75">0.75×</option>
+            <option value="1" selected>1×</option>
+            <option value="1.25">1.25×</option>
+            <option value="1.5">1.5×</option>
+            <option value="2">2×</option>
+            <option value="3">3×</option>
+          </select>
+        </div>
+        <div>
+          <label for="smoothing" data-i18n="smoothing.label">Сглаживание</label>
+          <select id="smoothing">
+            <option value="0" selected data-i18n="smoothing.none">Нет</option>
+            <option value="1" data-i18n="smoothing.light">Лёгкое</option>
+            <option value="2" data-i18n="smoothing.strong">Сильное</option>
+          </select>
+        </div>
+      </div>
+      <div class="checks">
+        <label><input type="checkbox" id="satellite" checked> <span data-i18n="layer.satellite">Спутник</span></label>
+        <label><input type="checkbox" id="labels" checked> <span data-i18n="layer.labels">Подписи</span></label>
+        <label><input type="checkbox" id="buildings" checked> <span data-i18n="layer.buildings">Здания</span></label>
+        <label><input type="checkbox" id="roads" checked> <span data-i18n="layer.roads">Дороги</span></label>
+        <label><input type="checkbox" id="railways" checked> <span data-i18n="layer.railways">Ж/д</span></label>
+      </div>
+      <div class="notice" data-i18n="notice.local">Спутник: Sentinel-2 cloudless, CC BY-NC-SA. Дома и дороги: OSM, ODbL. Google-данные не используются.</div>
+      <button id="generate" class="wide" style="margin-top:12px" disabled data-i18n="generate.button">Сгенерировать 3D-участок</button>
+    </section>
+
+    <section id="status">
+      <div class="status-head"><b id="status-title">Генерация</b><span id="percent" class="hint">0%</span></div>
+      <div class="progress"><div id="bar"></div></div>
+      <div id="msg">Подготовка</div>
+      <div id="err" class="error"></div>
+    </section>
+
+    <section id="result">
+      <div class="section-head"><b data-i18n="result.done">Готово</b><span class="pill" id="result-pill"></span></div>
+      <div id="result-summary" class="result-summary"></div>
+      <div id="warnings" class="warnings" hidden></div>
+      <div id="view"></div>
+      <div id="files"></div>
+    </section>
+
+    <footer class="footer" data-i18n="footer.licenses">Данные: © OpenStreetMap contributors, ODbL. Спутник: Sentinel-2 cloudless, EOX, CC BY-NC-SA.</footer>
+  </aside>
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+  <script>
+    const LANG_KEY = '3dmapgen.lang';
+    const STRINGS = {
+      ru: {
+        'app.title': '3Dmaps — генератор 3D-карт', 'brand.title': '3Dmaps',
+        'brand.sub': 'Выдели участок на карте — получишь рельеф, серые здания, дороги и железные дороги в OBJ/GLB для Blender.',
+        'search.label': 'Найти место', 'search.placeholder': 'Город, адрес, координаты', 'search.find': 'Найти',
+        'search.locate': 'Моё место', 'search.clear': 'Очистить',
+        'zone.label': 'Выделенная зона', 'zone.none': 'Рамка не выбрана', 'zone.hint': 'Выдели прямоугольник, чтобы задать зону.',
+        'name.label': 'Название', 'spacing.label': 'Шаг рельефа, м', 'texture.label': 'Текстура',
+        'terrain.heading': 'Настройки рельефа', 'height.label': 'Высота рельефа', 'smoothing.label': 'Сглаживание',
+        'smoothing.none': 'Нет', 'smoothing.light': 'Лёгкое', 'smoothing.strong': 'Сильное',
+        'quality.fast': 'Быстро', 'quality.balanced': 'Баланс', 'quality.detail': 'Детально',
+        'layer.satellite': 'Спутник', 'layer.labels': 'Подписи', 'layer.buildings': 'Здания', 'layer.roads': 'Дороги', 'layer.railways': 'Ж/д',
+        'notice.local': 'Спутник: Sentinel-2 cloudless, CC BY-NC-SA. Дома и дороги: OSM, ODbL. Google-данные не используются.',
+        'generate.button': 'Сгенерировать 3D-участок', 'result.done': 'Готово', 'result.preview': 'Открыть 3D-просмотр',
+        'result.area': 'Площадь', 'result.triangles': 'Треугольники', 'result.buildings': 'Здания', 'result.roads': 'Дороги',
+        'result.files': 'Файлы', 'result.count': '{buildings} зд. · {roads} дорог', 'warning.title': 'Предупреждения',
+        'zone.ready': 'можно генерировать', 'zone.pill': '{area} км²', 'result.areaUnit': 'км²', 'zone.tooSmall': 'слишком маленькая', 'zone.tooLarge': 'макс. {max} × {max} км',
+        'zone.reduce': 'уменьши до {area} км²', 'zone.zero': '0 км²', 'zone.area': '{width} × {height} км · {status}',
+        'zone.updated': 'Зона обновлена', 'zone.noDraw': 'Сначала выдели прямоугольник на карте.',
+        'status.generating': 'Генерация', 'status.done': 'Готово', 'status.preparing': 'Подготовка', 'status.error': 'Ошибка',
+        'search.searching': 'Ищу…', 'search.notFound': 'Место не найдено', 'search.unavailable': 'Поиск недоступен',
+        'search.geoUnavailable': 'Геолокация недоступна', 'footer.licenses': 'Данные: © OpenStreetMap contributors, ODbL. Спутник: Sentinel-2 cloudless, EOX, CC BY-NC-SA.'
+      },
+      en: {
+        'app.title': '3Dmaps — 3D map generator', 'brand.title': '3Dmaps',
+        'brand.sub': 'Select an area — get terrain, grey buildings, roads and railways in OBJ/GLB for Blender.',
+        'search.label': 'Find a place', 'search.placeholder': 'City, address or coordinates', 'search.find': 'Search',
+        'search.locate': 'My location', 'search.clear': 'Clear',
+        'zone.label': 'Selected area', 'zone.none': 'No area selected', 'zone.hint': 'Draw a rectangle to define the area.',
+        'name.label': 'Name', 'spacing.label': 'Terrain step, m', 'texture.label': 'Texture',
+        'terrain.heading': 'Terrain settings', 'height.label': 'Terrain height', 'smoothing.label': 'Smoothing',
+        'smoothing.none': 'None', 'smoothing.light': 'Light', 'smoothing.strong': 'Strong',
+        'quality.fast': 'Fast', 'quality.balanced': 'Balanced', 'quality.detail': 'Detailed',
+        'layer.satellite': 'Satellite', 'layer.labels': 'Labels', 'layer.buildings': 'Buildings', 'layer.roads': 'Roads', 'layer.railways': 'Railways',
+        'notice.local': 'Satellite: Sentinel-2 cloudless, CC BY-NC-SA. Buildings and roads: OSM, ODbL. No Google data is used.',
+        'generate.button': 'Generate 3D area', 'result.done': 'Done', 'result.preview': 'Open 3D preview',
+        'result.area': 'Area', 'result.triangles': 'Triangles', 'result.buildings': 'Buildings', 'result.roads': 'Roads',
+        'result.files': 'Files', 'result.count': '{buildings} bldg · {roads} roads', 'warning.title': 'Warnings',
+        'zone.ready': 'ready to generate', 'zone.pill': '{area} km²', 'result.areaUnit': 'km²', 'zone.tooSmall': 'area is too small', 'zone.tooLarge': 'max {max} × {max} km',
+        'zone.reduce': 'reduce to {area} km²', 'zone.zero': '0 km²', 'zone.area': '{width} × {height} km · {status}',
+        'zone.updated': 'Area updated', 'zone.noDraw': 'Draw a rectangle on the map first.',
+        'status.generating': 'Generating', 'status.done': 'Done', 'status.preparing': 'Preparing', 'status.error': 'Error',
+        'search.searching': 'Searching…', 'search.notFound': 'Place not found', 'search.unavailable': 'Search unavailable',
+        'search.geoUnavailable': 'Geolocation unavailable', 'footer.licenses': 'Data: © OpenStreetMap contributors, ODbL. Satellite: Sentinel-2 cloudless, EOX, CC BY-NC-SA.'
+      }
+    };
+    let lang = localStorage.getItem(LANG_KEY) || ((navigator.language || 'ru').toLowerCase().startsWith('ru') ? 'ru' : 'en');
+    if (!STRINGS[lang]) lang = 'ru';
+    const t = (key, vars) => {
+      let value = (STRINGS[lang] || STRINGS.ru)[key] || STRINGS.ru[key] || key;
+      if (vars) Object.entries(vars).forEach(([name, replacement]) => { value = value.split('{' + name + '}').join(String(replacement)); });
+      return value;
+    };
+    const STATUS_EN = {
+      'Проверка параметров': 'Validating settings',
+      'Рельеф загружен': 'Terrain loaded',
+      'Рельеф готов': 'Terrain ready',
+      'Данные OSM загружены': 'OSM data loaded',
+      'Геометрия собрана': 'Geometry built',
+      'Экспорт OBJ и GLB': 'Exporting OBJ and GLB',
+      'Запись метаданных': 'Writing metadata',
+      'Готово': 'Done',
+      'Загрузка OSM API': 'Loading OSM API',
+      'Разбор OSM': 'Parsing OSM',
+      'Загрузка OSM Overpass': 'Loading OSM Overpass',
+      'Разбор OSM Overpass': 'Parsing OSM Overpass',
+      'Загрузка спутниковой текстуры': 'Loading satellite texture',
+      'Текстуры готовы': 'Textures ready'
+    };
+    function tr(message) {
+      if (lang === 'ru' || !message) return message;
+      if (STATUS_EN[message]) return STATUS_EN[message];
+      let match = message.match(/^DEM-тайлы (\d+)\/(\d+)$/);
+      if (match) return `DEM tiles ${match[1]}/${match[2]}`;
+      match = message.match(/^Здания: (\d+), дороги: (\d+)$/);
+      if (match) return `Buildings: ${match[1]}, roads: ${match[2]}`;
+      match = message.match(/^Чтение PBF: объекты \((\d+) узлов\)$/);
+      if (match) return `Reading PBF: objects (${match[1]} nodes)`;
+      match = message.match(/^Чтение PBF: узлы и связи$/);
+      if (match) return 'Reading PBF: nodes and relations';
+      match = message.match(/^Скачивание PBF (.+)$/);
+      if (match) return `Downloading PBF ${match[1]}`;
+      match = message.match(/^Спутник недоступен: (.+)$/);
+      if (match) return `Satellite unavailable: ${match[1]}`;
+      if (message === 'Спутниковая текстура недоступна, используется relief') return 'Satellite texture unavailable, using relief';
+      match = message.match(/^Площадь ([\d.]+) км² больше лимита (\d+) км²$/);
+      if (match) return `Area ${match[1]} km² exceeds the limit of ${match[2]} km²`;
+      if (message === 'Не передана зона bbox') return 'Area bbox is missing';
+      match = message.match(/^Сетка (\d+)x(\d+) слишком большая; увеличь terrain_spacing$/);
+      if (match) return `Grid ${match[1]}x${match[2]} is too large; increase terrain_spacing`;
+      if (message === 'terrain_smoothing должен быть 0, 1 или 2') return 'terrain_smoothing must be 0, 1 or 2';
+      return message;
+    }
+    function applyLanguage() {
+      document.documentElement.lang = lang;
+      document.title = t('app.title');
+      document.querySelectorAll('[data-i18n]').forEach((element) => { element.textContent = t(element.dataset.i18n); });
+      document.querySelectorAll('[data-i18n-placeholder]').forEach((element) => { element.placeholder = t(element.dataset.i18nPlaceholder); });
+      document.querySelectorAll('[data-i18n-title]').forEach((element) => { element.title = t(element.dataset.i18nTitle); });
+      document.getElementById('langSelect').value = lang;
+      if (!currentRect) {
+        bboxEl.textContent = t('zone.none');
+        areaEl.textContent = t('zone.hint');
+        document.getElementById('area-pill').textContent = t('zone.zero');
+      }
+    }
+
+    const map = L.map('map', { zoomControl: false }).setView([47.222, 39.71], 13);
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
+
+    const drawn = new L.FeatureGroup().addTo(map);
+    let currentRect = null;
+    const bboxEl = document.getElementById('bbox');
+    const areaEl = document.getElementById('area');
+    const areaPill = document.getElementById('area-pill');
+    const generateBtn = document.getElementById('generate');
+    let pollTimer = null;
+    let lastJob = null;
+
+    document.getElementById('langSelect').onchange = (event) => {
+      lang = STRINGS[event.target.value] ? event.target.value : 'ru';
+      try { localStorage.setItem(LANG_KEY, lang); } catch (ignored) {}
+      applyLanguage();
+      if (currentRect) updateArea(currentRect.getBounds());
+      if (lastJob) showResult(lastJob);
+    };
+
+    map.addControl(new L.Control.Draw({
+      position: 'topleft',
+      draw: { polyline: false, polygon: false, circle: false, marker: false, circlemarker: false, rectangle: { shapeOptions: { color: '#5ee29b', weight: 2, fillOpacity: 0.12 } } },
+      edit: { featureGroup: drawn, remove: true }
+    }));
+
+    function clearRect() {
+      drawn.clearLayers();
+      currentRect = null;
+      lastJob = null;
+      bboxEl.textContent = t('zone.none');
+      areaEl.textContent = t('zone.hint');
+      areaPill.textContent = t('zone.zero');
+      generateBtn.disabled = true;
+      document.getElementById('result').style.display = 'none';
+      document.getElementById('status').style.display = 'none';
+    }
+
+    function updateArea(bounds) {
+      const south = bounds.getSouth(), west = bounds.getWest(), north = bounds.getNorth(), east = bounds.getEast();
+      bboxEl.textContent = `${south.toFixed(6)}, ${west.toFixed(6)}, ${north.toFixed(6)}, ${east.toFixed(6)}`;
+      const w = (east - west) * 111320 * Math.cos((south + north) / 2 * Math.PI / 180);
+      const h = (north - south) * 111320;
+      const area = w * h / 1e6;
+      let status = area < 0.005 ? t('zone.tooSmall') : t('zone.ready');
+      if (area > 400) status = t('zone.reduce', { area: 400 });
+      areaEl.textContent = t('zone.area', { width: (w / 1000).toFixed(2), height: (h / 1000).toFixed(2), status });
+      areaPill.textContent = t('zone.pill', { area: area.toFixed(2) });
+      areaPill.classList.toggle('warn', area > 400);
+    }
+
+    function setRect(rect) {
+      drawn.clearLayers();
+      currentRect = rect;
+      drawn.addLayer(rect);
+      updateArea(rect.getBounds());
+      generateBtn.disabled = false;
+    }
+
+    map.on(L.Draw.Event.CREATED, (e) => setRect(e.layer));
+    map.on(L.Draw.Event.EDITED, (e) => { e.layers.eachLayer((layer) => setRect(layer)); });
+    map.on(L.Draw.Event.DELETED, clearRect);
+    document.getElementById('clear').onclick = clearRect;
+
+    document.getElementById('locate').onclick = () => {
+      if (!navigator.geolocation) { areaEl.textContent = t('search.geoUnavailable'); return; }
+      navigator.geolocation.getCurrentPosition((pos) => map.setView([pos.coords.latitude, pos.coords.longitude], 15));
+    };
+
+    document.querySelectorAll('[data-size]').forEach((button) => {
+      button.onclick = () => {
+        if (!currentRect) { areaEl.textContent = t('zone.noDraw'); return; }
+        const center = currentRect.getBounds().getCenter();
+        const d = Number(button.dataset.size) / 111.32 / 2;
+        const dLon = d / Math.cos(center.lat * Math.PI / 180);
+        setRect(L.rectangle([[center.lat - d, center.lng - dLon], [center.lat + d, center.lng + dLon]]));
+        map.fitBounds(currentRect.getBounds(), { padding: [20, 20] });
+      };
+    });
+
+    async function findPlace() {
+      const q = document.getElementById('search').value.trim();
+      if (!q) return;
+      areaEl.textContent = t('search.searching');
+      const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(q);
+      try {
+        const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
+        const data = await response.json();
+        if (!data.length) { areaEl.textContent = t('search.notFound'); return; }
+        const lat = parseFloat(data[0].lat), lon = parseFloat(data[0].lon);
+        map.setView([lat, lon], 15);
+        const dLat = 0.01, dLon = 0.01 / Math.cos(lat * Math.PI / 180);
+        setRect(L.rectangle([[lat - dLat, lon - dLon], [lat + dLat, lon + dLon]]));
+      } catch (err) { areaEl.textContent = t('search.unavailable'); }
+    }
+    document.getElementById('find').onclick = findPlace;
+    document.getElementById('search').addEventListener('keydown', (e) => { if (e.key === 'Enter') findPlace(); });
+
+    const QUALITY = {
+      fast: { spacing: '60', texture: '2048', smoothing: '1' },
+      balanced: { spacing: '30', texture: '4096', smoothing: '0' },
+      detail: { spacing: '15', texture: '4096', smoothing: '0' }
+    };
+    function applyQuality(name) {
+      const preset = QUALITY[name];
+      if (!preset) return;
+      for (const [key, value] of Object.entries(preset)) document.getElementById(key).value = value;
+      updateQualityState();
+    }
+    function updateQualityState() {
+      const current = { spacing: document.getElementById('spacing').value, texture: document.getElementById('texture').value, smoothing: document.getElementById('smoothing').value };
+      document.querySelectorAll('.quality').forEach((button) => {
+        const preset = QUALITY[button.dataset.quality];
+        button.classList.toggle('active', !!preset && Object.keys(current).every((key) => current[key] === preset[key]));
+      });
+    }
+    document.querySelectorAll('.quality').forEach((button) => { button.onclick = () => applyQuality(button.dataset.quality); });
+    ['spacing', 'texture', 'smoothing'].forEach((id) => document.getElementById(id).addEventListener('change', updateQualityState));
+
+    function fileSize(bytes) {
+      if (bytes >= 1024 * 1024 * 1024) return (bytes / 1024 / 1024 / 1024).toFixed(2) + ' GB';
+      if (bytes >= 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+      if (bytes >= 1024) return (bytes / 1024).toFixed(0) + ' KB';
+      return bytes + ' B';
+    }
+
+    function showSummary(meta, files) {
+      document.getElementById('result-pill').textContent = t('result.count', { buildings: meta.counts?.buildings || 0, roads: meta.counts?.roads || 0 });
+      const box = document.getElementById('result-summary');
+      box.textContent = '';
+      const items = [
+        [t('result.area'), `${Number(meta.area_km2 || 0).toFixed(2)} ${t('result.areaUnit')}`],
+        [t('result.triangles'), Number(meta.counts?.triangles || 0).toLocaleString(lang === 'ru' ? 'ru-RU' : 'en-US')],
+        [t('result.buildings'), meta.counts?.buildings || 0],
+        [t('result.roads'), meta.counts?.roads || 0]
+      ];
+      for (const [label, value] of items) {
+        const item = document.createElement('div'); item.className = 'stat';
+        const name = document.createElement('span'); name.textContent = label;
+        const number = document.createElement('b'); number.textContent = value;
+        item.append(name, number); box.appendChild(item);
+      }
+      const warnings = document.getElementById('warnings');
+      const list = meta.warnings || [];
+      warnings.hidden = !list.length;
+      warnings.textContent = '';
+      if (list.length) {
+        const title = document.createElement('b'); title.textContent = t('warning.title');
+        const ul = document.createElement('ul');
+        list.forEach((warning) => { const li = document.createElement('li'); li.textContent = tr(warning); ul.appendChild(li); });
+        warnings.append(title, ul);
+      }
+    }
+
+    function showResult(job) {
+      lastJob = job;
+      document.getElementById('result').style.display = 'block';
+      const view = document.getElementById('view');
+      view.innerHTML = '';
+      if (job.view_url) {
+        const link = document.createElement('a'); link.className = 'view-link'; link.href = job.view_url; link.target = '_blank'; link.textContent = t('result.preview'); view.appendChild(link);
+      }
+      showSummary(job.meta || {}, job.files || []);
+      const files = document.getElementById('files');
+      files.textContent = '';
+      (job.files || []).forEach((f) => {
+        const div = document.createElement('div'); div.className = 'file';
+        const link = document.createElement('a'); link.href = f.url; link.target = '_blank'; link.textContent = f.name;
+        const size = document.createElement('span'); size.textContent = fileSize(f.size);
+        div.append(link, size); files.appendChild(div);
+      });
+    }
+
+    async function pollJob(id) {
+      try {
+        const response = await fetch(`/api/jobs/${id}`);
+        const job = await response.json();
+        document.getElementById('bar').style.width = `${Math.round(job.progress * 100)}%`;
+        document.getElementById('percent').textContent = `${Math.round(job.progress * 100)}%`;
+        document.getElementById('msg').textContent = tr(job.message || '');
+        if (job.status === 'done') {
+          clearInterval(pollTimer);
+          document.getElementById('status-title').textContent = t('status.done');
+          generateBtn.disabled = false;
+          showResult(job);
+        } else if (job.status === 'error') {
+          clearInterval(pollTimer);
+          document.getElementById('err').textContent = tr(job.error || t('status.error'));
+          generateBtn.disabled = false;
+        }
+      } catch (err) {
+        document.getElementById('msg').textContent = lang === 'ru' ? 'Нет связи с сервером' : 'No connection to server';
+      }
+    }
+
+    generateBtn.onclick = async () => {
+      if (!currentRect) return;
+      const b = currentRect.getBounds();
+      const payload = {
+        bbox: [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()],
+        name: document.getElementById('name').value || 'zone',
+        terrain_spacing: parseFloat(document.getElementById('spacing').value),
+        height_scale: parseFloat(document.getElementById('height_scale').value),
+        smoothing: parseInt(document.getElementById('smoothing').value, 10),
+        texture_size: parseInt(document.getElementById('texture').value, 10),
+        satellite: document.getElementById('satellite').checked,
+        labels: document.getElementById('labels').checked,
+        buildings: document.getElementById('buildings').checked,
+        roads: document.getElementById('roads').checked,
+        railways: document.getElementById('railways').checked
+      };
+      lastJob = null;
+      document.getElementById('status').style.display = 'block';
+      document.getElementById('result').style.display = 'none';
+      document.getElementById('err').textContent = '';
+      document.getElementById('status-title').textContent = t('status.generating');
+      document.getElementById('bar').style.width = '0%';
+      generateBtn.disabled = true;
+      try {
+        const response = await fetch('/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        const data = await response.json();
+        if (!response.ok) throw new Error(tr(data.error) || t('status.error'));
+        if (pollTimer) clearInterval(pollTimer);
+        pollTimer = setInterval(() => pollJob(data.job_id), 700);
+        pollJob(data.job_id);
+      } catch (err) {
+        document.getElementById('err').textContent = err.message;
+        generateBtn.disabled = false;
+      }
+    };
+
+    applyLanguage();
+    updateQualityState();
+  </script>
+</body>
+</html>

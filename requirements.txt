@@ -1,0 +1,8 @@
+Flask>=3.0,<4
+mapbox-earcut>=1.0,<3
+numpy>=2.0,<3
+osmium>=4.0,<5
+Pillow>=11,<14
+pyproj>=3.7,<4
+requests>=2.31,<3
+shapely>=2.0,<3

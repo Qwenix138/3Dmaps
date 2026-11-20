@@ -1,0 +1,62 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "3dmapgen"
+version = "0.1.2"
+description = "Генератор 3D-участков карты из OpenStreetMap и открытых DEM"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "3Dmaps contributors" }]
+keywords = ["3d", "map", "openstreetmap", "dem", "blender", "obj", "glb"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Web Environment",
+  "Intended Audience :: End Users/Desktop",
+  "Programming Language :: Python :: 3",
+  "Topic :: Multimedia :: Graphics :: 3D Modeling",
+]
+dependencies = [
+  "Flask>=3.0,<4",
+  "mapbox-earcut>=1.0,<3",
+  "numpy>=2.0,<3",
+  "osmium>=4.0,<5",
+  "Pillow>=11,<14",
+  "pyproj>=3.7,<4",
+  "requests>=2.31,<3",
+  "shapely>=2.0,<3",
+]
+
+[project.urls]
+Homepage = "https://github.com/Qwenix138/3Dmaps"
+Repository = "https://github.com/Qwenix138/3Dmaps"
+Issues = "https://github.com/Qwenix138/3Dmaps/issues"
+Changelog = "https://github.com/Qwenix138/3Dmaps/blob/main/CHANGELOG.md"
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0,<10", "pyinstaller>=6.10,<7"]
+
+[project.scripts]
+3dmapgen = "mapgen.cli:main"
+3dmapweb = "mapgen.web:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["mapgen*"]
+
+[tool.setuptools.package-data]
+mapgen = [
+  "templates/*.html",
+  "assets/fonts/*.ttf",
+  "assets/fonts/*.txt",
+  "static/*",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
