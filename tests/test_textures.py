@@ -8,7 +8,11 @@ from mapgen.elevation import TerrainGrid
 from mapgen.geo import make_grid
 from mapgen.osm import OsmData, OsmNode
 from mapgen.roads import RoadWay
-from mapgen.textures import _draw_labels, build_textures, render_label_textures
+from pyproj import Transformer
+
+import mapgen.textures as textures_module
+from mapgen.textures import _draw_labels, build_textures, download_eox_satellite, render_label_textures
+from mapgen.water import WaterBody
 
 
 def make_scene_data():
@@ -42,6 +46,41 @@ def make_scene_data():
         source="test",
     )
     return bbox, projection, grid, terrain, building, road, data
+
+
+def test_water_texture_keeps_island_hole():
+    bbox, projection, grid, terrain, building, road, data = make_scene_data()
+    lake = WaterBody(
+        "test",
+        Polygon(
+            [(-100, -100), (100, -100), (100, 100), (-100, 100)],
+            [[(-20, -20), (20, -20), (20, 20), (-20, 20)]],
+        ),
+        {},
+    )
+    image, _ = render_label_textures(
+        bbox, [], [], data, projection, grid, 256, include_labels=False, water=[lake]
+    )
+    center = image.getpixel((128, 128))
+    lake_pixel = image.getpixel((180, 128))
+    assert center[:3] == (239, 236, 230)
+    assert lake_pixel[2] > lake_pixel[0] + 30
+
+
+def test_eox_tiles_are_north_up(monkeypatch):
+    bbox = BBox(47.220, 39.690, 47.223, 39.693)
+    transformer = Transformer.from_crs(4326, 3857, always_xy=True)
+    _, mid_y = transformer.transform(bbox.center[1], bbox.center[0])
+
+    def fake_tile(x1, y1, x2, y2, width, height, layer, timeout):
+        color = (255, 0, 0) if (y1 + y2) / 2 > mid_y else (0, 0, 255)
+        return Image.new("RGB", (width, height), color)
+
+    monkeypatch.setattr(textures_module, "_download_eox_tile", fake_tile)
+    image, _, _ = download_eox_satellite(bbox, size=64)
+    assert image.size == (64, 64)
+    assert image.getpixel((0, 0))[0] > 200
+    assert image.getpixel((0, 63))[2] > 200
 
 
 def test_labels_can_be_disabled():

@@ -34,6 +34,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--no-buildings", action="store_true")
     parser.add_argument("--no-roads", action="store_true")
     parser.add_argument("--no-railways", action="store_true")
+    parser.add_argument("--no-water", action="store_true")
     parser.add_argument("--simplify", type=float, default=0.35)
     parser.add_argument("--height-scale", type=float, default=1.0)
     parser.add_argument("--smoothing", type=int, choices=[0, 1, 2], default=0, help="сглаживание DEM: 0/1/2")
@@ -75,6 +76,7 @@ def main(argv: list[str] | None = None) -> int:
             buildings=not args.no_buildings,
             roads=not args.no_roads,
             railways=not args.no_railways,
+            water=not args.no_water,
             labels=not args.no_labels,
             satellite=not args.no_satellite,
             satellite_source=args.satellite_source,

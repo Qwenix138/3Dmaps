@@ -51,7 +51,8 @@ def test_export_obj(tmp_path):
     assert "o terrain" in obj
     assert "vt 1.000000 1.000000" in obj
     assert "usemtl terrain_labels" in obj
-    assert "map_Kd textures/labels.png" in mtl
+    assert "map_Kd zone_labels.png" in mtl
+    assert (tmp_path / "zone_labels.png").exists()
 
 
 def test_export_glb(tmp_path):

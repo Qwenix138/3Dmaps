@@ -124,6 +124,12 @@ def _relevant(tags: dict[str, str]) -> bool:
         or tags.get("highway")
         or tags.get("railway")
         or tags.get("place")
+        or tags.get("natural") == "water"
+        or tags.get("landuse") in ("reservoir", "basin")
+        or tags.get("waterway") in (
+            "river", "stream", "canal", "drain", "ditch", "brook",
+            "riverbank", "dock", "boatyard",
+        )
     )
 
 
@@ -167,7 +173,13 @@ class _NodePass(osmium.SimpleHandler):
 
     def relation(self, relation) -> None:
         tags = _tags(relation)
-        if not (tags.get("building") or tags.get("building:part")):
+        if not (
+            tags.get("building")
+            or tags.get("building:part")
+            or tags.get("natural") == "water"
+            or tags.get("landuse") in ("reservoir", "basin")
+            or tags.get("waterway") in ("riverbank", "dock", "boatyard")
+        ):
             return
         members = _relation_members(relation)
         if not members:

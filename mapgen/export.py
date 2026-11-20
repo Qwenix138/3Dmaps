@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import struct
 from pathlib import Path
 
@@ -16,12 +17,14 @@ MATERIAL_COLORS = {
     "building": (0.56, 0.56, 0.56, 1.0),
     "road": (0.15, 0.15, 0.16, 1.0),
     "rail": (0.23, 0.17, 0.13, 1.0),
+    "water": (0.20, 0.46, 0.65, 1.0),
     "terrain": (1.0, 1.0, 1.0, 1.0),
 }
 MATERIAL_NAMES = {
     "building": "building",
     "road": "road",
     "rail": "rail",
+    "water": "water",
     "terrain": "terrain",
 }
 
@@ -67,10 +70,14 @@ def export_obj(
     obj_path = out_dir / f"{name}.obj"
     mtl_path = out_dir / f"{name}.mtl"
 
+    texture_name = f"{name}_{terrain_variant}{texture_path.suffix or '.png'}"
+    texture_out = out_dir / texture_name
     try:
-        texture_ref = texture_path.relative_to(out_dir).as_posix()
-    except ValueError:
-        texture_ref = texture_path.as_posix()
+        if texture_out.resolve() != texture_path.resolve():
+            shutil.copy2(texture_path, texture_out)
+        texture_ref = texture_out.name
+    except OSError as exc:
+        raise MapgenError(f"Не удалось скопировать текстуру рядом с OBJ: {exc}") from exc
     try:
         fonts = []
         with mtl_path.open("w", encoding="utf-8", newline="\n") as mtl:
@@ -220,10 +227,11 @@ def export_glb(
         return len(accessors) - 1
 
     material_indices: dict[str, int] = {}
-    for key in ("terrain", "building", "road", "rail"):
+    for key in ("terrain", "building", "road", "rail", "water"):
         color = MATERIAL_COLORS[key]
         material = {
             "name": MATERIAL_NAMES[key],
+            "doubleSided": True,
             "pbrMetallicRoughness": {
                 "baseColorFactor": list(color),
                 "metallicFactor": 0.0,

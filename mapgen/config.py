@@ -12,6 +12,14 @@ DEFAULT_TERRAIN_SPACING = 30.0
 DEFAULT_TEXTURE_SIZE = 4096
 MAX_TERRAIN_CELLS = 1_600_000
 
+LAYER_OFFSETS = {
+    "terrain": 0.0,
+    "water": 0.2,
+    "road": 0.4,
+    "rail": 0.6,
+}
+BUILDING_FOUNDATION_M = 4.0
+
 
 @dataclass(frozen=True)
 class BBox:
@@ -98,6 +106,7 @@ class GenerationOptions:
     buildings: bool = True
     roads: bool = True
     railways: bool = True
+    water: bool = True
     labels: bool = True
     satellite: bool = True
     satellite_source: str = "eox"

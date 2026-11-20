@@ -153,6 +153,7 @@ def api_generate():
             buildings=bool(payload.get("buildings", True)),
             roads=bool(payload.get("roads", True)),
             railways=bool(payload.get("railways", True)),
+            water=bool(payload.get("water", True)),
             labels=bool(payload.get("labels", True)),
             satellite=bool(payload.get("satellite", True)),
             satellite_source=str(payload.get("satellite_source", "eox")),

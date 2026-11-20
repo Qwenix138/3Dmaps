@@ -45,7 +45,7 @@ import java.util.zip.GZIPInputStream;
 
 public class MainActivity extends Activity {
     private static final String START_URL = "file:///android_asset/web/index.html";
-    private static final String VERSION = "0.2.10";
+    private static final String VERSION = "0.2.11";
     private static final int REQUEST_GEO = 41;
     private static final int REQUEST_STORAGE = 42;
 

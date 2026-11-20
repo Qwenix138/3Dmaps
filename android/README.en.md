@@ -2,24 +2,23 @@
 
 [Русский](README.md) · [English](README.en.md)
 
-[`3Dmaps-0.2.10.apk`](https://github.com/Qwenix138/3Dmaps/releases/download/v0.2.10/3Dmaps-0.2.10.apk) is a standalone Android app. The UI and generator are bundled in the APK: no separate server, Termux, Python or address setup is required.
+[`3Dmaps-0.2.11.apk`](https://github.com/Qwenix138/3Dmaps/releases/download/v0.2.11/3Dmaps-0.2.11.apk) is a standalone Android app. The UI and generator are bundled in the APK: no separate server, Termux, Python or address setup is required.
 
 ## Installation
 
 1. Copy the APK to the phone and allow installation from unknown sources.
-2. Install `3Dmaps-0.2.10.apk`. Version 0.2.10 upgrades 0.2.9/0.2.8/0.2.7/0.2.6/0.2.5/0.2.4/0.2.3/0.2.2/0.2.1/0.2.0/0.1.0 with the same package, `com.opencode.mapgen`.
+2. Install `3Dmaps-0.2.11.apk`. Version 0.2.11 upgrades 0.2.10/0.2.9/0.2.8/0.2.7/0.2.6/0.2.5/0.2.4/0.2.3/0.2.2/0.2.1/0.2.0/0.1.0 with the same package, `com.opencode.mapgen`.
 3. Open 3Dmaps, choose RU/EN in the header, tap “Box” and draw a rectangle. Resize it by corners/edges, move it by the center point or from inside, or use a preset.
 
 Internet is required for the map, OSM outlines, Terrarium elevations and EOX satellite imagery. Generation, geometry and file saving run on the phone.
 
-## What's new in 0.2.10
+## What's new in 0.2.11
 
-- Fixed OSM loading for dense cities such as New York: the OSM API 50,000-node limit falls back to Overpass, and then to OSM API tiles if Overpass is unavailable. Errors from all sources are now shown.
-- Russian and English UI; the language choice is saved.
-- Fast / Balanced / Detailed quality presets.
-- Result summary: area, triangles, buildings, roads and warnings.
-- Improved panel and file-list design.
-- Includes the 0.2.7/0.2.8/0.2.9 fixes: correct `.obj`/`.mtl` extensions, terrain height, DEM smoothing, quality presets and result summary.
+- Water from OSM: lakes, reservoirs, rivers, streams, canals and islands; water is rendered in textures and exported as a separate material.
+- Building foundations, layer Z-offsets and road/rail tessellation.
+- More reliable EOX satellite texture: 2×2 tiles, retries, blank-tile checks and fallback.
+- Fixed satellite tile orientation, polygon-with-holes triangulation and multipolygon relation assembly.
+- Includes the 0.2.7–0.2.10 fixes: correct `.obj`/`.mtl` extensions, terrain height, DEM smoothing, presets, summary and OSM loading.
 
 ## Included
 

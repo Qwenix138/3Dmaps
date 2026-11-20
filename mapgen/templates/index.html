@@ -200,6 +200,7 @@
         <label><input type="checkbox" id="buildings" checked> <span data-i18n="layer.buildings">Здания</span></label>
         <label><input type="checkbox" id="roads" checked> <span data-i18n="layer.roads">Дороги</span></label>
         <label><input type="checkbox" id="railways" checked> <span data-i18n="layer.railways">Ж/д</span></label>
+        <label><input type="checkbox" id="water" checked> <span data-i18n="layer.water">Вода</span></label>
       </div>
       <div class="notice" data-i18n="notice.local">Спутник: Sentinel-2 cloudless, CC BY-NC-SA. Дома и дороги: OSM, ODbL. Google-данные не используются.</div>
       <button id="generate" class="wide" style="margin-top:12px" disabled data-i18n="generate.button">Сгенерировать 3D-участок</button>
@@ -239,7 +240,7 @@
         'terrain.heading': 'Настройки рельефа', 'height.label': 'Высота рельефа', 'smoothing.label': 'Сглаживание',
         'smoothing.none': 'Нет', 'smoothing.light': 'Лёгкое', 'smoothing.strong': 'Сильное',
         'quality.fast': 'Быстро', 'quality.balanced': 'Баланс', 'quality.detail': 'Детально',
-        'layer.satellite': 'Спутник', 'layer.labels': 'Подписи', 'layer.buildings': 'Здания', 'layer.roads': 'Дороги', 'layer.railways': 'Ж/д',
+        'layer.satellite': 'Спутник', 'layer.labels': 'Подписи', 'layer.buildings': 'Здания', 'layer.roads': 'Дороги', 'layer.railways': 'Ж/д', 'layer.water': 'Вода',
         'notice.local': 'Спутник: Sentinel-2 cloudless, CC BY-NC-SA. Дома и дороги: OSM, ODbL. Google-данные не используются.',
         'generate.button': 'Сгенерировать 3D-участок', 'result.done': 'Готово', 'result.preview': 'Открыть 3D-просмотр',
         'result.area': 'Площадь', 'result.triangles': 'Треугольники', 'result.buildings': 'Здания', 'result.roads': 'Дороги',
@@ -261,7 +262,7 @@
         'terrain.heading': 'Terrain settings', 'height.label': 'Terrain height', 'smoothing.label': 'Smoothing',
         'smoothing.none': 'None', 'smoothing.light': 'Light', 'smoothing.strong': 'Strong',
         'quality.fast': 'Fast', 'quality.balanced': 'Balanced', 'quality.detail': 'Detailed',
-        'layer.satellite': 'Satellite', 'layer.labels': 'Labels', 'layer.buildings': 'Buildings', 'layer.roads': 'Roads', 'layer.railways': 'Railways',
+        'layer.satellite': 'Satellite', 'layer.labels': 'Labels', 'layer.buildings': 'Buildings', 'layer.roads': 'Roads', 'layer.railways': 'Railways', 'layer.water': 'Water',
         'notice.local': 'Satellite: Sentinel-2 cloudless, CC BY-NC-SA. Buildings and roads: OSM, ODbL. No Google data is used.',
         'generate.button': 'Generate 3D area', 'result.done': 'Done', 'result.preview': 'Open 3D preview',
         'result.area': 'Area', 'result.triangles': 'Triangles', 'result.buildings': 'Buildings', 'result.roads': 'Roads',
@@ -545,7 +546,8 @@
         labels: document.getElementById('labels').checked,
         buildings: document.getElementById('buildings').checked,
         roads: document.getElementById('roads').checked,
-        railways: document.getElementById('railways').checked
+        railways: document.getElementById('railways').checked,
+        water: document.getElementById('water').checked
       };
       lastJob = null;
       document.getElementById('status').style.display = 'block';

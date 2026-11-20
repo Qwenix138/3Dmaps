@@ -43,8 +43,8 @@ def test_building_mesh_uses_relative_elevation():
     mesh = build_building_mesh([building], terrain)
     z_values = [vertex[2] for vertex in mesh.vertices]
     assert len(mesh.faces) > 0
-    assert min(z_values) == pytest.approx(4.65)
-    assert max(z_values) == pytest.approx(16.65)
+    assert min(z_values) == pytest.approx(1.0)
+    assert max(z_values) == pytest.approx(17.0)
 
 
 def test_terrain_mesh_orientation():
@@ -54,6 +54,29 @@ def test_terrain_mesh_orientation():
     north = terrain.grid.ny - 1
     index = north * terrain.grid.nx
     assert mesh.uvs[index][1] == pytest.approx(1.0)
+
+
+def test_terrain_mesh_mercator_uv():
+    bbox = BBox(60.0, 10.0, 60.01, 10.01)
+    projection, grid = make_grid(bbox, 8)
+    terrain = TerrainGrid(
+        elevations=np.zeros((grid.ny, grid.nx), dtype=np.float64),
+        grid=grid,
+        projection=projection,
+        zoom=14,
+        tiles=[],
+        base_elevation=0.0,
+        attribution="test",
+        bbox=bbox,
+    )
+    mesh = build_terrain_mesh(terrain)
+    north = grid.ny - 1
+    south_index = 0
+    north_index = north * grid.nx
+    assert mesh.uvs[south_index][1] == pytest.approx(0.0, abs=1e-6)
+    assert mesh.uvs[north_index][1] == pytest.approx(1.0, abs=1e-6)
+    middle = (grid.ny // 2) * grid.nx
+    assert 0.49 < mesh.uvs[middle][1] < 0.5
 
 
 def test_relief_image_is_north_up():

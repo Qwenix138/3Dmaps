@@ -227,6 +227,14 @@ def overpass_query(bbox: BBox) -> str:
   relation["building"]({b});
   way["highway"]({b});
   way["railway"]({b});
+  way["natural"="water"]({b});
+  relation["natural"="water"]({b});
+  way["landuse"="reservoir"]({b});
+  relation["landuse"="reservoir"]({b});
+  way["landuse"="basin"]({b});
+  relation["landuse"="basin"]({b});
+  way["waterway"~"^(river|stream|canal|drain|ditch|brook|riverbank|dock|boatyard)$"]({b});
+  relation["type"="multipolygon"]["waterway"="riverbank"]({b});
   node["place"]({b});
 );
 out body;

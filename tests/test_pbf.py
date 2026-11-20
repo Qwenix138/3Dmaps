@@ -61,7 +61,7 @@ def test_parse_pbf_outside_bbox(tmp_path):
         parse_pbf(path, bbox)
 
 
-def write_relation_sample(path, way_tags=None, way_id=30, relation_id=40):
+def write_relation_sample(path, way_tags=None, way_id=30, relation_id=40, relation_tags=None):
     writer = osmium.SimpleWriter(str(path))
     points = [
         (39.6900, 47.2200),
@@ -86,7 +86,7 @@ def write_relation_sample(path, way_tags=None, way_id=30, relation_id=40):
         osmium.osm.mutable.Relation(
             id=relation_id,
             members=[osmium.osm.RelationMember(mtype="w", ref=way_id, role="outer")],
-            tags={"building": "yes", "height": "15"},
+            tags=relation_tags or {"building": "yes", "height": "15"},
         )
     )
     writer.close()
@@ -108,6 +108,27 @@ def test_parse_pbf_multipolygon_relation(tmp_path):
         data, LocalProjection(*bbox.center), options
     )
     assert [building.osm_id for building in buildings] == ["relation/40"]
+
+
+def test_parse_pbf_water_relation(tmp_path):
+    from mapgen.config import GenerationOptions
+    from mapgen.geo import LocalProjection
+    from mapgen.water import extract_water
+
+    path = tmp_path / "water-relation.osm.pbf"
+    write_relation_sample(
+        path,
+        way_id=32,
+        relation_id=42,
+        relation_tags={"type": "multipolygon", "natural": "water"},
+    )
+    bbox = BBox(47.2195, 39.6895, 47.2215, 39.6915)
+    data = parse_pbf(path, bbox)
+    assert 42 in data.relations
+    assert data.ways[32].tags == {}
+    options = GenerationOptions(bbox=bbox, out_dir=tmp_path)
+    water = extract_water(data, LocalProjection(*bbox.center), options)
+    assert [body.osm_id for body in water] == ["relation/42"]
 
 
 def test_relation_supersedes_tagged_outer_way(tmp_path):

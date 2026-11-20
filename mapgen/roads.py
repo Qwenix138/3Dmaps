@@ -6,10 +6,10 @@ import numpy as np
 from shapely.geometry import LineString, Polygon
 from shapely.geometry.polygon import orient
 
-from .config import GenerationOptions
+from .config import LAYER_OFFSETS, GenerationOptions
 from .elevation import TerrainGrid
 from .geo import LocalProjection
-from .mesh import MeshData, multipolygon_parts, triangulate_polygon
+from .mesh import MeshData, densify_coords, densify_polygon, multipolygon_parts, triangulate_polygon
 from .osm import OsmData
 
 ROAD_WIDTHS = {
@@ -99,7 +99,7 @@ def build_road_mesh(
     roads: list[RoadWay],
     terrain: TerrainGrid,
     material: str,
-    offset_m: float = 0.12,
+    offset_m: float | None = None,
 ) -> MeshData:
     grid = terrain.grid
     clip = Polygon(
@@ -110,19 +110,23 @@ def build_road_mesh(
             (grid.x_min, grid.y_max),
         ]
     )
+    if offset_m is None:
+        offset_m = LAYER_OFFSETS["rail"] if material == "rail" else LAYER_OFFSETS["road"]
+    spacing = (grid.x_max - grid.x_min) / max(1, grid.nx - 1)
+    max_step = max(4.0, min(20.0, spacing * 0.75))
     mesh = MeshData("roads" if material == "road" else "railways", material)
     for road in roads:
         if road.material != material:
             continue
         try:
-            line = LineString(road.coords)
+            line = LineString(densify_coords(road.coords, max_step))
             if line.length <= 0.1:
                 continue
             polygon = line.buffer(
                 road.width / 2.0,
                 cap_style=2,
                 join_style=2,
-                resolution=1,
+                quad_segs=1,
             )
             if polygon.is_empty:
                 continue
@@ -133,7 +137,7 @@ def build_road_mesh(
             for part in multipolygon_parts(polygon):
                 if part.area < 0.5:
                     continue
-                part = orient(part, sign=1.0)
+                part = densify_polygon(orient(part, sign=1.0), max_step)
                 triangulated = triangulate_polygon(part)
                 if triangulated is None:
                     continue

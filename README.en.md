@@ -2,18 +2,18 @@
 
 [Русский](README.md) · [English](README.en.md)
 
-A free generator of 3D map areas for Blender and other 3D editors. Select a rectangle on the map — 3Dmaps builds terrain, buildings, roads and railways, applies textures and exports the scene as OBJ/GLB.
+A free generator of 3D map areas for Blender and other 3D editors. Select a rectangle on the map — 3Dmaps builds terrain, buildings, roads, railways and water, applies textures and exports the scene as OBJ/GLB.
 
 The project uses OpenStreetMap and open elevation data instead of Google Maps. Google tiles and Google 3D cannot be legally exported as a model, so Google is not used as a geometry or texture source.
 
 ## Download
 
-Official repository: [github.com/Qwenix138/3Dmaps](https://github.com/Qwenix138/3Dmaps). Ready builds are on [GitHub Releases](https://github.com/Qwenix138/3Dmaps/releases/tag/v0.2.10):
+Official repository: [github.com/Qwenix138/3Dmaps](https://github.com/Qwenix138/3Dmaps). Ready builds are on [GitHub Releases](https://github.com/Qwenix138/3Dmaps/releases/tag/v0.2.11):
 
-- [Android APK 0.2.10](https://github.com/Qwenix138/3Dmaps/releases/download/v0.2.10/3Dmaps-0.2.10.apk) — Android 6+;
-- [Linux .deb 0.1.2](https://github.com/Qwenix138/3Dmaps/releases/download/v0.2.10/3dmapgen_0.1.2_amd64.deb) — Debian/Ubuntu x86_64;
-- [Linux portable 0.1.2](https://github.com/Qwenix138/3Dmaps/releases/download/v0.2.10/3dmapgen-linux-x86_64.tar.gz);
-- [Windows portable 0.1.2](https://github.com/Qwenix138/3Dmaps/releases/download/v0.2.10/3dmapgen-windows-x86_64.zip).
+- [Android APK 0.2.11](https://github.com/Qwenix138/3Dmaps/releases/download/v0.2.11/3Dmaps-0.2.11.apk) — Android 6+;
+- [Linux .deb 0.1.3](https://github.com/Qwenix138/3Dmaps/releases/download/v0.2.11/3dmapgen_0.1.3_amd64.deb) — Debian/Ubuntu x86_64;
+- [Linux portable 0.1.3](https://github.com/Qwenix138/3Dmaps/releases/download/v0.2.11/3dmapgen-linux-x86_64.tar.gz);
+- [Windows portable 0.1.3](https://github.com/Qwenix138/3Dmaps/releases/download/v0.2.11/3dmapgen-windows-x86_64.zip).
 
 The project is open source under the MIT license. Verify downloads with `sha256sum -c SHA256SUMS` from the release.
 
@@ -26,6 +26,7 @@ The project is open source under the MIT license. Verify downloads with `sha256s
 - Fast / Balanced / Detailed quality presets.
 - Real OSM building footprints with grey prisms and tagged heights.
 - Roads and railways with widths by type.
+- Water layer from OSM: lakes, reservoirs, rivers, streams, canals, islands and labels.
 - Textures:
   - `satellite.jpg` — Sentinel-2 cloudless via EOX WMS;
   - `labels.png` — labels and map linework rendered from OSM;
@@ -89,11 +90,11 @@ Quality presets: Fast — 60 m step, 2048 texture, smoothing 1; Balanced — 30 
 
 ### Android APK
 
-Ready APK: [3Dmaps-0.2.10.apk](https://github.com/Qwenix138/3Dmaps/releases/download/v0.2.10/3Dmaps-0.2.10.apk) (Android 6+). It is standalone: no Python, Termux or separate server. The generator runs in a WebView, and a Java bridge downloads OSM/DEM/satellite data and saves files to `Download/3Dmaps/<name>/`.
+Ready APK: [3Dmaps-0.2.11.apk](https://github.com/Qwenix138/3Dmaps/releases/download/v0.2.11/3Dmaps-0.2.11.apk) (Android 6+). It is standalone: no Python, Termux or separate server. The generator runs in a WebView, and a Java bridge downloads OSM/DEM/satellite data and saves files to `Download/3Dmaps/<name>/`.
 
 Install the APK, open 3Dmaps and draw a rectangle. Resize it with 8 handles, move it by the center point or from inside, or use a 0.5–3 km preset; width, height and center are available in the “Exact size” section. Internet is required for the map, OSM, Terrarium elevations and EOX satellite imagery; generation and export run on the phone. The map shows area size, scale, zoom and coordinates. Maximum area is 15×15 km (225 km²); 2–4 km² works best downtown. Terrain step is 10–60 m, height 0.5×–2×, DEM smoothing, texture 512–2048 px. Save everything, GLB only, or OBJ+MTL; OBJ is saved with the correct `.obj` extension.
 
-Version 0.2.10 fixes OSM loading for dense cities such as New York: the OSM API 50,000-node limit falls back to Overpass, and then to automatically split OSM API tiles if Overpass is unavailable. Errors from all sources are combined. It also adds English, quality presets and a result summary. Sources and the build script are in `android/`; old APKs are removed and the current build is in the release folder.
+Version 0.2.11 adds water from OSM: lakes, rivers, canals and islands, plus building foundations, layer Z-offsets, road tessellation and a more reliable EOX satellite texture with retries and fallback. It fixes tile orientation, polygon-with-holes triangulation and multipolygon relation assembly. Sources and the build script are in `android/`; the current build is in the release folder.
 
 ### API
 
@@ -217,12 +218,12 @@ Output: `dist/3dmapgen`, `dist/3dmapgen-web`.
 
 Ready builds:
 
-- [3dmapgen_0.1.2_amd64.deb](https://github.com/Qwenix138/3Dmaps/releases/download/v0.2.10/3dmapgen_0.1.2_amd64.deb) — installer for Linux Mint/Ubuntu x86_64;
-- [3dmapgen-linux-x86_64.tar.gz](https://github.com/Qwenix138/3Dmaps/releases/download/v0.2.10/3dmapgen-linux-x86_64.tar.gz) — portable build with Python, run `./3Dmaps` or `bin/3dmapgen`;
-- [3dmapgen-windows-x86_64.zip](https://github.com/Qwenix138/3Dmaps/releases/download/v0.2.10/3dmapgen-windows-x86_64.zip) — portable build with Python, run `3Dmaps.exe`;
-- [3Dmaps-0.2.10.apk](https://github.com/Qwenix138/3Dmaps/releases/download/v0.2.10/3Dmaps-0.2.10.apk) — standalone Android APK.
+- [3dmapgen_0.1.3_amd64.deb](https://github.com/Qwenix138/3Dmaps/releases/download/v0.2.11/3dmapgen_0.1.3_amd64.deb) — installer for Linux Mint/Ubuntu x86_64;
+- [3dmapgen-linux-x86_64.tar.gz](https://github.com/Qwenix138/3Dmaps/releases/download/v0.2.11/3dmapgen-linux-x86_64.tar.gz) — portable build with Python, run `./3Dmaps` or `bin/3dmapgen`;
+- [3dmapgen-windows-x86_64.zip](https://github.com/Qwenix138/3Dmaps/releases/download/v0.2.11/3dmapgen-windows-x86_64.zip) — portable build with Python, run `3Dmaps.exe`;
+- [3Dmaps-0.2.11.apk](https://github.com/Qwenix138/3Dmaps/releases/download/v0.2.11/3Dmaps-0.2.11.apk) — standalone Android APK.
 
-Install `.deb`: `sudo apt install ./3dmapgen_0.1.2_amd64.deb`. The “3Dmaps” entry appears in the menu and the CLI is available as `3dmapgen`.
+Install `.deb`: `sudo apt install ./3dmapgen_0.1.3_amd64.deb`. The “3Dmaps” entry appears in the menu and the CLI is available as `3dmapgen`.
 
 Portable builds bundle Python 3.14 and dependency wheels; Linux x86_64 and Windows onefile builds are still produced in GitHub Actions. The onefile web build stores results in `~/3Dmaps/output` and cache in `~/3Dmaps/cache`. Override with `MAPGEN_OUTPUT` and `MAPGEN_CACHE`.
 
@@ -237,8 +238,8 @@ The script builds in `/tmp/3dmapgen-android-build` to avoid Cyrillic path issues
 ## Releases
 
 - [GitHub Releases](https://github.com/Qwenix138/3Dmaps/releases) — APK, `.deb`, portable Linux/Windows builds and `SHA256SUMS`.
-- [RELEASE_NOTES.md](release/3Dmaps-0.2.10/RELEASE_NOTES.md) — 0.2.10 contents and verification results.
-- [PUBLISHING.en.md](release/3Dmaps-0.2.10/docs/PUBLISHING.en.md) — release preparation process.
+- [RELEASE_NOTES.md](release/3Dmaps-0.2.11/RELEASE_NOTES.md) — 0.2.11 contents and verification results.
+- [PUBLISHING.en.md](release/3Dmaps-0.2.11/docs/PUBLISHING.en.md) — release preparation process.
 - Binaries are excluded from git by `.gitignore` and attached to GitHub Releases separately.
 
 The `build` workflow runs manually or on a `v*` tag: Actions → build → Run workflow.

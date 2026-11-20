@@ -8,8 +8,11 @@
     building: [0.56, 0.56, 0.56, 1],
     rail: [0.23, 0.17, 0.13, 1],
     road: [0.15, 0.15, 0.16, 1],
+    water: [0.20, 0.46, 0.65, 1],
     terrain: [1, 1, 1, 1],
   };
+  const LAYER_OFFSETS = { terrain: 0.0, water: 0.2, road: 0.4, rail: 0.6 };
+  const BUILDING_FOUNDATION_M = 4.0;
   const ROAD_STYLES = {
     motorway: { color: '#e6bd73', width: 22 },
     motorway_link: { color: '#e6bd73', width: 13 },
@@ -118,50 +121,106 @@
     return copy;
   }
 
-  function pointInTriangle(p, a, b, c) {
-    const d1 = (p[0] - b[0]) * (a[1] - b[1]) - (a[0] - b[0]) * (p[1] - b[1]);
-    const d2 = (p[0] - c[0]) * (b[1] - c[1]) - (b[0] - c[0]) * (p[1] - c[1]);
-    const d3 = (p[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (p[1] - a[1]);
-    const hasNeg = d1 < 0 || d2 < 0 || d3 < 0;
-    const hasPos = d1 > 0 || d2 > 0 || d3 > 0;
-    return !(hasNeg && hasPos);
-  }
-
   function triangulateRing(ring) {
     const points = ensureCCW(cleanRing(ring));
     if (points.length < 3) return { points: [], triangles: [] };
     if (points.length === 3) return { points, triangles: [[0, 1, 2]] };
-    let indices = points.map((_, i) => i);
-    const triangles = [];
-    let guard = 0;
-    while (indices.length > 3 && guard++ < points.length * points.length + 20) {
-      let found = false;
-      for (let i = 0; i < indices.length; i++) {
-        const ia = indices[(i - 1 + indices.length) % indices.length];
-        const ib = indices[i];
-        const ic = indices[(i + 1) % indices.length];
-        const a = points[ia], b = points[ib], c = points[ic];
-        const cross = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
-        if (cross <= 1e-8) continue;
-        let blocked = false;
-        for (const j of indices) {
-          if (j === ia || j === ib || j === ic) continue;
-          if (pointInTriangle(points[j], a, b, c)) {
-            blocked = true;
-            break;
-          }
-        }
-        if (blocked) continue;
-        triangles.push([ia, ib, ic]);
-        indices.splice(i, 1);
-        found = true;
-        break;
+    return triangulateRingsScanline([points]);
+  }
+
+  function ensureCW(ring) {
+    const copy = ring.map((p) => [p[0], p[1]]);
+    if (signedArea(copy) > 0) copy.reverse();
+    return copy;
+  }
+
+  function pointInRing(point, ring) {
+    let inside = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const a = ring[i], b = ring[j];
+      if (((a[1] > point[1]) !== (b[1] > point[1]))
+        && (point[0] < (b[0] - a[0]) * (point[1] - a[1]) / ((b[1] - a[1]) || 1e-12) + a[0])) {
+        inside = !inside;
       }
-      if (!found) break;
     }
-    if (indices.length === 3) triangles.push([indices[0], indices[1], indices[2]]);
-    if (!triangles.length && points.length >= 3) {
-      for (let i = 1; i < points.length - 1; i++) triangles.push([0, i, i + 1]);
+    return inside;
+  }
+
+  function triangulatePolygon(outer, holes) {
+    const cleanOuter = ensureCCW(cleanRing(outer));
+    if (cleanOuter.length < 3) return { points: [], triangles: [] };
+    const cleanHoles = (holes || [])
+      .map((ring) => cleanRing(ring))
+      .filter((ring) => ring.length >= 3);
+    if (!cleanHoles.length) return triangulateRing(cleanOuter);
+    return triangulateRingsScanline([cleanOuter, ...cleanHoles]);
+  }
+
+  function triangulateRingsScanline(rings) {
+    const edges = [];
+    const xs = [];
+    for (const ring of rings) {
+      for (let i = 0; i < ring.length; i++) {
+        const a = ring[i], b = ring[(i + 1) % ring.length];
+        xs.push(a[0]);
+        if (Math.abs(b[0] - a[0]) < 1e-9) continue;
+        edges.push({ a, b, minX: Math.min(a[0], b[0]), maxX: Math.max(a[0], b[0]) });
+      }
+    }
+    xs.sort((a, b) => a - b);
+    edges.sort((a, b) => a.minX - b.minX);
+    const unique = [];
+    for (const x of xs) {
+      if (!unique.length || Math.abs(x - unique[unique.length - 1]) > 1e-7) unique.push(x);
+    }
+    const points = [];
+    const triangles = [];
+    const edgeY = (edge, x) => {
+      const dx = edge.b[0] - edge.a[0];
+      return edge.a[1] + (edge.b[1] - edge.a[1]) * (x - edge.a[0]) / dx;
+    };
+    const addPoint = (point) => {
+      points.push(point);
+      return points.length - 1;
+    };
+    const addTriangle = (ia, ib, ic) => {
+      const a = points[ia], b = points[ib], c = points[ic];
+      const area = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+      if (Math.abs(area) < 1e-8) return;
+      if (area > 0) triangles.push([ia, ib, ic]);
+      else triangles.push([ia, ic, ib]);
+    };
+    let nextEdge = 0;
+    let active = [];
+    for (let k = 0; k + 1 < unique.length; k++) {
+      const left = unique[k], right = unique[k + 1];
+      if (right - left < 1e-7) continue;
+      while (nextEdge < edges.length && edges[nextEdge].minX <= left + 1e-9) {
+        active.push(edges[nextEdge++]);
+      }
+      active = active.filter((edge) => edge.maxX >= right - 1e-9);
+      const middle = (left + right) / 2;
+      const hits = [];
+      for (const edge of active) {
+        if (middle < edge.minX - 1e-9 || middle > edge.maxX + 1e-9) continue;
+        hits.push({ y: edgeY(edge, middle), edge });
+      }
+      hits.sort((a, b) => a.y - b.y);
+      for (let i = 0; i + 1 < hits.length; i += 2) {
+        const lower = hits[i], upper = hits[i + 1];
+        if (upper.y - lower.y < 1e-7) continue;
+        const p0 = [left, edgeY(lower.edge, left)];
+        const p1 = [right, edgeY(lower.edge, right)];
+        const p2 = [right, edgeY(upper.edge, right)];
+        const p3 = [left, edgeY(upper.edge, left)];
+        if (Math.abs(p0[1] - p3[1]) < 1e-7 && Math.abs(p1[1] - p2[1]) < 1e-7) continue;
+        const i0 = addPoint(p0);
+        const i1 = addPoint(p1);
+        const i2 = addPoint(p2);
+        const i3 = addPoint(p3);
+        addTriangle(i0, i1, i2);
+        addTriangle(i0, i2, i3);
+      }
     }
     return { points, triangles };
   }
@@ -231,6 +290,15 @@
     return (a * (1 - fu) + b * fu) * (1 - fv) + (c * (1 - fu) + d * fu) * fv;
   }
 
+  function mercatorX(lon) {
+    return lon * 20037508.34 / 180;
+  }
+
+  function mercatorY(lat) {
+    const clipped = clamp(lat, -85.05112878, 85.05112878);
+    return Math.log(Math.tan((90 + clipped) * Math.PI / 360)) * 20037508.34 / Math.PI;
+  }
+
   function terrainMesh(terrain) {
     const nx = terrain.nx, ny = terrain.ny;
     const positions = new Float64Array(nx * ny * 3);
@@ -244,8 +312,17 @@
         positions[k * 3] = x;
         positions[k * 3 + 1] = y;
         positions[k * 3 + 2] = z;
-        uvs[k * 2] = (x - terrain.xMin) / (terrain.xMax - terrain.xMin);
-        uvs[k * 2 + 1] = (y - terrain.yMin) / (terrain.yMax - terrain.yMin);
+        if (terrain.info) {
+          const lon = terrain.info.toLon(x), lat = terrain.info.toLat(y);
+          const mx = mercatorX(lon), my = mercatorY(lat);
+          const west = mercatorX(terrain.info.west), east = mercatorX(terrain.info.east);
+          const south = mercatorY(terrain.info.south), north = mercatorY(terrain.info.north);
+          uvs[k * 2] = (mx - west) / Math.max(1e-9, east - west);
+          uvs[k * 2 + 1] = (my - south) / Math.max(1e-9, north - south);
+        } else {
+          uvs[k * 2] = (x - terrain.xMin) / (terrain.xMax - terrain.xMin);
+          uvs[k * 2 + 1] = (y - terrain.yMin) / (terrain.yMax - terrain.yMin);
+        }
         const i0 = Math.max(0, i - 1), i1 = Math.min(nx - 1, i + 1);
         const j0 = Math.max(0, j - 1), j1 = Math.min(ny - 1, j + 1);
         const dzdx = (terrain.z[j * nx + i1] - terrain.z[j * nx + i0])
@@ -316,10 +393,11 @@
         if (Math.abs(signedArea(ring)) < 4) continue;
         const triangulated = triangulateRing(ring);
         if (!triangulated.triangles.length) continue;
-        let base = Infinity;
-        for (const p of ring) base = Math.min(base, sampleTerrain(terrain, p[0], p[1]));
-        base = base - terrain.baseElevation - 0.35;
-        const top = base + building.height;
+        let ground = Infinity;
+        for (const p of ring) ground = Math.min(ground, sampleTerrain(terrain, p[0], p[1]));
+        ground -= terrain.baseElevation;
+        const base = ground - BUILDING_FOUNDATION_M;
+        const top = ground + building.height;
         const offset = positions.length / 3;
         for (const p of triangulated.points) {
           positions.push(p[0], p[1], top);
@@ -365,6 +443,8 @@
       }
       const group = groups.get(kind);
       const coords = road.coords;
+      const offset = kind === 'rail' ? LAYER_OFFSETS.rail : LAYER_OFFSETS.road;
+      const maxStep = 12;
       for (let i = 0; i < coords.length - 1; i++) {
         const a = coords[i], b = coords[i + 1];
         const dx = b[0] - a[0], dy = b[1] - a[1];
@@ -372,13 +452,20 @@
         if (len < 0.25) continue;
         const nx = -dy / len * road.width / 2;
         const ny = dx / len * road.width / 2;
-        const za = sampleTerrain(terrain, a[0], a[1]) - terrain.baseElevation + 0.22;
-        const zb = sampleTerrain(terrain, b[0], b[1]) - terrain.baseElevation + 0.22;
-        const p0 = [a[0] + nx, a[1] + ny, za];
-        const p1 = [b[0] + nx, b[1] + ny, zb];
-        const p2 = [b[0] - nx, b[1] - ny, zb];
-        const p3 = [a[0] - nx, a[1] - ny, za];
-        addQuad(group.positions, group.normals, group.indices, p0, p1, p2, p3, [0, 0, 1]);
+        const pieces = Math.max(1, Math.ceil(len / maxStep));
+        for (let j = 0; j < pieces; j++) {
+          const t0 = j / pieces, t1 = (j + 1) / pieces;
+          const ax = a[0] + dx * t0, ay = a[1] + dy * t0;
+          const bx = a[0] + dx * t1, by = a[1] + dy * t1;
+          const za = sampleTerrain(terrain, ax, ay) - terrain.baseElevation + offset;
+          const zb = sampleTerrain(terrain, bx, by) - terrain.baseElevation + offset;
+          addQuad(
+            group.positions, group.normals, group.indices,
+            [ax + nx, ay + ny, za], [bx + nx, by + ny, zb],
+            [bx - nx, by - ny, zb], [ax - nx, ay - ny, za],
+            [0, 0, 1]
+          );
+        }
       }
     }
     return Array.from(groups.values()).map((group) => ({
@@ -387,6 +474,36 @@
       normals: new Float32Array(group.normals),
       indices: new Uint32Array(group.indices),
     })).filter((group) => group.indices.length > 0);
+  }
+
+  function waterMesh(water, terrain) {
+    const positions = [], normals = [], indices = [];
+    for (const body of water || []) {
+      const clipped = clipRing(body.outer || body.rings?.[0] || [], terrain);
+      if (clipped.length < 3) continue;
+      const outer = ensureCCW(clipped);
+      const holes = [];
+      for (const raw of body.holes || []) {
+        const hole = clipRing(raw, terrain);
+        if (hole.length >= 3) holes.push(hole);
+      }
+      const triangulated = triangulatePolygon(outer, holes);
+      if (!triangulated.triangles.length) continue;
+      const offset = positions.length / 3;
+      for (const point of triangulated.points) {
+        positions.push(point[0], point[1],
+          sampleTerrain(terrain, point[0], point[1]) - terrain.baseElevation + LAYER_OFFSETS.water);
+        normals.push(0, 0, 1);
+      }
+      for (const tri of triangulated.triangles) {
+        indices.push(offset + tri[0], offset + tri[1], offset + tri[2]);
+      }
+    }
+    return {
+      name: 'water', material: 'water', color: COLORS.water,
+      positions: new Float32Array(positions), normals: new Float32Array(normals),
+      indices: new Uint32Array(indices), textured: false,
+    };
   }
 
   function hexColor(value) {
@@ -459,7 +576,8 @@
     for (const material of materials) {
       if (material === 'terrain_hybrid') continue;
       const color = material === 'building' ? COLORS.building
-        : material === 'rail' ? COLORS.rail : COLORS.road;
+        : material === 'rail' ? COLORS.rail
+        : material === 'water' ? COLORS.water : COLORS.road;
       mtl.push(`newmtl ${material}`);
       mtl.push(`Kd ${fmt(color[0])} ${fmt(color[1])} ${fmt(color[2])}`, 'Ks 0 0 0', 'd 1.0', 'illum 1', '');
     }
@@ -509,6 +627,7 @@
       building: COLORS.building,
       rail: COLORS.rail,
       road: COLORS.road,
+      water: COLORS.water,
     };
     for (const key of Object.keys(materialColors)) {
       materialIndex[key] = materials.length;
@@ -605,7 +724,7 @@
       materials[materialIndex.terrain].pbrMetallicRoughness.baseColorTexture = { index: 0 };
     }
     const document = {
-      asset: { version: '2.0', generator: '3Dmaps standalone 0.2.10' },
+      asset: { version: '2.0', generator: '3Dmaps standalone 0.2.11' },
       scene: 0,
       scenes: [{ nodes: [0] }],
       nodes: [{ mesh: 0, name: '3Dmaps' }],
@@ -655,9 +774,10 @@
   root.D3M = {
     RAD, DEG, EARTH_RADIUS, COLORS, ROAD_STYLES, DEFAULT_HEIGHTS,
     clamp, parseNumber, bboxInfo, cleanRing, signedArea, ensureCCW,
-    triangulateRing, clipRing, buildingHeight, sampleTerrain,
-    terrainMesh, buildingMesh, roadMesh, buildObj, buildGlb,
-    finalizeNormals, simplifyRing, hexColor,
+    triangulateRing, triangulatePolygon, pointInRing, ensureCW, clipRing,
+    buildingHeight, sampleTerrain, mercatorX, mercatorY,
+    terrainMesh, buildingMesh, roadMesh, waterMesh, buildObj, buildGlb,
+    finalizeNormals, simplifyRing, hexColor, LAYER_OFFSETS, BUILDING_FOUNDATION_M,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.D3M;
 })(typeof window !== 'undefined' ? window : (typeof global !== 'undefined' ? global : {}));

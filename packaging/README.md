@@ -4,9 +4,9 @@
 
 ## Статус
 
-- Linux x86_64 — `.deb` и портативный архив: `release/3Dmaps-0.2.10/3dmapgen_0.1.2_amd64.deb`, `release/3Dmaps-0.2.10/3dmapgen-linux-x86_64.tar.gz`.
-- Windows x86_64 — портативная сборка с Python: `release/3Dmaps-0.2.10/3dmapgen-windows-x86_64.zip`.
-- Android — автономный WebView-генератор: `release/3Dmaps-0.2.10/3Dmaps-0.2.10.apk`.
+- Linux x86_64 — `.deb` и портативный архив: `release/3Dmaps-0.2.11/3dmapgen_0.1.3_amd64.deb`, `release/3Dmaps-0.2.11/3dmapgen-linux-x86_64.tar.gz`.
+- Windows x86_64 — портативная сборка с Python: `release/3Dmaps-0.2.11/3dmapgen-windows-x86_64.zip`.
+- Android — автономный WebView-генератор: `release/3Dmaps-0.2.11/3Dmaps-0.2.11.apk`.
 - GitHub Actions — onefile-сборки Linux x86_64 и Windows x86_64, если репозиторий запушен.
 
 ## Linux и Windows через GitHub Actions
@@ -21,7 +21,7 @@ Workflow `.github/workflows/build.yml` запускается вручную и�
 
 ## Портативные сборки Linux x86_64 и Windows x86_64
 
-Сборки лежат в `release/3Dmaps-0.2.10/` и не требуют установленного Python:
+Сборки лежат в `release/3Dmaps-0.2.11/` и не требуют установленного Python:
 
 - `3dmapgen-linux-x86_64.tar.gz` — распакуйте и запускайте `./3Dmaps` (интерфейс откроется в браузере) либо `bin/3dmapgen` / `bin/3dmapgen-web`;
 - `3dmapgen-windows-x86_64.zip` — полностью распакуйте и запускайте `3Dmaps.exe`; также доступны `3dmapgen.exe`, `3dmapgen-web.exe` и `.bat`-обёртки.
@@ -31,7 +31,7 @@ Workflow `.github/workflows/build.yml` запускается вручную и�
 ## Установка на Linux Mint / Ubuntu x86_64
 
 ```bash
-sudo apt install ./3dmapgen_0.1.2_amd64.deb
+sudo apt install ./3dmapgen_0.1.3_amd64.deb
 ```
 
 После установки в меню появится «3Dmaps», CLI доступен как `3dmapgen`, веб-версия — как `3dmapgen-web`. Запуск из меню открывает локальный сервер на `127.0.0.1:8765`. Удаление: `sudo apt remove 3dmapgen`.
@@ -63,7 +63,7 @@ MAPGEN_OUTPUT=/path/to/output MAPGEN_CACHE=/path/to/cache ./dist/3dmapgen-web
 
 ## Android
 
-Готовое приложение: `release/3Dmaps-0.2.10/3Dmaps-0.2.10.apk`. Оно работает автономно: сервер, Termux и Python на телефоне не нужны. Нужен только интернет для OSM, DEM Terrarium и спутника EOX. В 0.2.10 добавлены RU/EN, пресеты качества и сводка результата.
+Готовое приложение: `release/3Dmaps-0.2.11/3Dmaps-0.2.11.apk`. Оно работает автономно: сервер, Termux и Python на телефоне не нужны. Нужен только интернет для OSM, DEM Terrarium и спутника EOX. В 0.2.11 добавлены вода из OSM, фундаменты, тесселяция, надёжный спутник, RU/EN, пресеты качества и сводка результата.
 
 Сборка:
 

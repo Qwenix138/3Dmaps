@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.2.11 / desktop 0.1.3 — 2026-11-20
+
+### Added
+
+- OSM water layer: lakes, reservoirs, basins, rivers, streams and canals; islands and polygon holes.
+- Water in textures, preview, `meta.json` and the Android result summary.
+- Building foundations, layer Z-offsets and road/rail tessellation.
+- EOX 2×2 satellite tiles with retries, blank-tile checks and fallback.
+- Mercator terrain UVs, `water` export in OBJ/MTL and GLB (`doubleSided`).
+- `tests/test_water.py` and satellite orientation tests.
+
+### Fixed
+
+- North-up satellite tile orientation on desktop and Android.
+- Polygon-with-holes triangulation on Android (scanline).
+- Multipolygon relation assembly from split OSM ways.
+- Variant files, MTL and texture export next to OBJ.
+- Android: blank EOX tiles no longer end up in the texture.
+
+### Builds
+
+- Android: `3Dmaps-0.2.11.apk`, versionCode 13.
+- Linux: `3dmapgen_0.1.3_amd64.deb`, `3dmapgen-linux-x86_64.tar.gz`.
+- Windows: `3dmapgen-windows-x86_64.zip`.
+
 ## 0.2.10 / desktop 0.1.2 — 2026-11-20
 
 ### Fixed

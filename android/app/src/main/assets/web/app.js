@@ -60,6 +60,7 @@
       'layer.buildings': 'Здания',
       'layer.roads': 'Дороги',
       'layer.railways': 'Ж/д',
+      'layer.water': 'Вода',
       'notice.local': 'Всё считается на телефоне. Нужен только интернет для OSM, высот и спутника. Google-данные не используются.',
       'generate.button': 'Сгенерировать 3D-участок',
       'status.generating': 'Генерация',
@@ -78,6 +79,7 @@
       'result.triangles': 'Треугольники',
       'result.buildings': 'Здания',
       'result.roads': 'Дороги',
+      'result.water': 'Вода',
       'result.count': '{buildings} зд. · {roads} дорог',
       'result.trianglesLabel': '3Dmaps · {count} треугольников',
       'footer.licenses': 'OSM © contributors, ODbL. Спутник Sentinel-2 cloudless, EOX, CC BY-NC-SA.',
@@ -192,6 +194,7 @@
       'layer.buildings': 'Buildings',
       'layer.roads': 'Roads',
       'layer.railways': 'Railways',
+      'layer.water': 'Water',
       'notice.local': 'Everything runs on the phone. Internet is only needed for OSM, elevation and satellite data. No Google data is used.',
       'generate.button': 'Generate 3D area',
       'status.generating': 'Generating',
@@ -210,6 +213,7 @@
       'result.triangles': 'Triangles',
       'result.buildings': 'Buildings',
       'result.roads': 'Roads',
+      'result.water': 'Water',
       'result.count': '{buildings} bldg · {roads} roads',
       'result.trianglesLabel': '3Dmaps · {count} triangles',
       'footer.licenses': 'OSM © contributors, ODbL. Sentinel-2 cloudless by EOX, CC BY-NC-SA.',
@@ -365,6 +369,10 @@
 
   function nextFrame() {
     return new Promise((resolve) => setTimeout(resolve, 12));
+  }
+
+  function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   function setProgress(value, message) {
@@ -1236,15 +1244,15 @@
     return { nodes, ways, relations };
   }
 
-  function wayRefs(way) {
-    if (!way) return [];
-    return way.refs.filter((ref) => state.osm.nodes.has(ref));
+  function wayRefs(way, data = state.osm) {
+    if (!way || !data) return [];
+    return way.refs.filter((ref) => data.nodes.has(ref));
   }
 
-  function wayCoords(way) {
+  function wayCoords(way, data = state.osm) {
     const coords = [];
-    for (const ref of wayRefs(way)) {
-      const node = state.osm.nodes.get(ref);
+    for (const ref of wayRefs(way, data)) {
+      const node = data.nodes.get(ref);
       coords.push([node.lon, node.lat]);
     }
     return coords;
@@ -1256,12 +1264,12 @@
     return D.simplifyRing(ring, tolerance || 0.25);
   }
 
-  function assembleRings(wayIds) {
+  function assembleRings(wayIds, data = state.osm) {
     const segments = [];
     for (const id of wayIds) {
-      const way = state.osm.ways.get(id);
+      const way = data.ways.get(id);
       if (!way) continue;
-      const refs = way.refs.filter((ref) => state.osm.nodes.has(ref));
+      const refs = way.refs.filter((ref) => data.nodes.has(ref));
       if (refs.length >= 2) segments.push(refs);
     }
     const rings = [];
@@ -1292,7 +1300,7 @@
       if (refs.length >= 4 && refs[0] === refs[refs.length - 1]) {
         const coords = [];
         for (const ref of refs) {
-          const node = state.osm.nodes.get(ref);
+          const node = data.nodes.get(ref);
           if (node) coords.push([node.lon, node.lat]);
         }
         if (coords.length >= 4) rings.push(coords);
@@ -1310,6 +1318,14 @@
   relation["building"]({b});
   way["highway"]({b});
   way["railway"]({b});
+  way["natural"="water"]({b});
+  relation["natural"="water"]({b});
+  way["landuse"="reservoir"]({b});
+  relation["landuse"="reservoir"]({b});
+  way["landuse"="basin"]({b});
+  relation["landuse"="basin"]({b});
+  way["waterway"~"^(river|stream|canal|drain|ditch|brook|riverbank|dock|boatyard)$"]({b});
+  relation["type"="multipolygon"]["waterway"="riverbank"]({b});
   node["place"]({b});
 );
 out body;
@@ -1494,6 +1510,121 @@ out skel qt;`;
     return roads;
   }
 
+  const WATER_WIDTHS = {
+    river: 12, stream: 4, canal: 8, drain: 2.5, ditch: 2, brook: 3,
+  };
+
+  function isWaterArea(tags) {
+    return tags.natural === 'water' || tags.natural === 'riverbank'
+      || tags.waterway === 'riverbank' || tags.waterway === 'dock'
+      || tags.waterway === 'boatyard'
+      || tags.landuse === 'reservoir' || tags.landuse === 'basin';
+  }
+
+  function isWaterLine(tags) {
+    return !!WATER_WIDTHS[tags.waterway] && !isWaterArea(tags);
+  }
+
+  function waterWidth(tags) {
+    const parsed = parseFloat(String(tags.width || '').replace(',', '.'));
+    return Number.isFinite(parsed) && parsed >= 0.5 && parsed <= 500
+      ? parsed : (WATER_WIDTHS[tags.waterway] || 4);
+  }
+
+  function bufferLine(coords, width) {
+    if (!coords || coords.length < 2) return [];
+    const half = width / 2;
+    const left = [], right = [];
+    for (let i = 0; i < coords.length; i++) {
+      const current = coords[i];
+      const prev = coords[Math.max(0, i - 1)];
+      const next = coords[Math.min(coords.length - 1, i + 1)];
+      const direction = (a, b) => {
+        let dx = b[0] - a[0], dy = b[1] - a[1];
+        const length = Math.hypot(dx, dy);
+        if (length < 1e-9) return null;
+        return [dx / length, dy / length];
+      };
+      const first = direction(prev, current) || direction(current, next) || [1, 0];
+      const second = direction(current, next) || first;
+      const n1 = [-first[1], first[0]];
+      const n2 = [-second[1], second[0]];
+      let mx = n1[0] + n2[0], my = n1[1] + n2[1];
+      const length = Math.hypot(mx, my);
+      if (length < 1e-9) {
+        mx = n1[0];
+        my = n1[1];
+      } else {
+        mx /= length;
+        my /= length;
+      }
+      const dot = Math.max(0.25, Math.abs(mx * n1[0] + my * n1[1]));
+      const scale = Math.min(half * 3, half / dot);
+      left.push([current[0] + mx * scale, current[1] + my * scale]);
+      right.push([current[0] - mx * scale, current[1] - my * scale]);
+    }
+    return left.concat(right.reverse());
+  }
+
+  function extractWater(osm, info) {
+    const water = [];
+    const usedByRelation = new Set();
+    for (const way of osm.ways.values()) {
+      const tags = way.tags || {};
+      if (!isWaterArea(tags) && !isWaterLine(tags)) continue;
+      const coords = wayCoords(way, osm);
+      if (coords.length < 2) continue;
+      if (isWaterArea(tags)) {
+        if (coords.length < 4) continue;
+        if (coords[0][0] !== coords[coords.length - 1][0]
+          || coords[0][1] !== coords[coords.length - 1][1]) coords.push(coords[0]);
+        const ring = localRing(coords, info, 0.25);
+        if (ring.length >= 3 && Math.abs(D.signedArea(ring)) >= 1) {
+          water.push({ outer: ring, holes: [], tags, id: 'way/' + way.id });
+        }
+      } else {
+        const local = [];
+        for (const [lon, lat] of coords) {
+          const x = info.toX(lon), y = info.toY(lat);
+          if (x < info.xMin - 200 || x > info.xMax + 200
+            || y < info.yMin - 200 || y > info.yMax + 200) continue;
+          local.push([x, y]);
+        }
+        const ring = bufferLine(local, waterWidth(tags));
+        if (ring.length >= 3) {
+          water.push({ outer: ring, holes: [], tags, id: 'way/' + way.id });
+        }
+      }
+    }
+    for (const relation of osm.relations.values()) {
+      const tags = relation.tags || {};
+      if (!isWaterArea(tags)) continue;
+      const outerIds = relation.members
+        .filter((member) => member.type === 'way' && member.role !== 'inner')
+        .map((member) => member.ref);
+      const innerIds = relation.members
+        .filter((member) => member.type === 'way' && member.role === 'inner')
+        .map((member) => member.ref);
+      const outerRings = assembleRings(outerIds, osm)
+        .map((coords) => localRing(coords, info, 0.25))
+        .filter((ring) => ring.length >= 3);
+      const innerRings = assembleRings(innerIds, osm)
+        .map((coords) => localRing(coords, info, 0.25))
+        .filter((ring) => ring.length >= 3);
+      if (!outerRings.length) continue;
+      for (const id of outerIds.concat(innerIds)) usedByRelation.add(id);
+      for (const outer of outerRings) {
+        const holes = innerRings.filter((hole) => D.pointInRing(hole[0], outer));
+        water.push({ outer, holes, tags, id: 'relation/' + relation.id });
+      }
+    }
+    if (!usedByRelation.size) return water;
+    return water.filter((body) => {
+      if (!body.id.startsWith('way/')) return true;
+      return !usedByRelation.has(Number(body.id.slice(4)));
+    });
+  }
+
   function extractPlaces(osm, info) {
     const places = [];
     for (const node of osm.nodes.values()) {
@@ -1664,6 +1795,26 @@ out skel qt;`;
     ];
   }
 
+  function drawWater(ctx, water, info, size, alpha) {
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#4a8cb4';
+    for (const body of water || []) {
+      const rings = [body.outer, ...(body.holes || [])];
+      ctx.beginPath();
+      for (const ring of rings) {
+        if (!ring || ring.length < 3) continue;
+        for (let i = 0; i < ring.length; i++) {
+          const [px, py] = mapPixel(ring[i][0], ring[i][1], info, size);
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+      }
+      ctx.fill('evenodd');
+    }
+    ctx.globalAlpha = 1;
+  }
+
   function drawRoads(ctx, roads, info, size, alpha) {
     const metersPerPx = (info.xMax - info.xMin) / size;
     ctx.lineCap = 'round';
@@ -1743,17 +1894,19 @@ out skel qt;`;
     }
   }
 
-  function buildTextureCanvases(info, buildings, roads, places, size, useLabels) {
+  function buildTextureCanvases(info, buildings, roads, places, size, useLabels, water) {
     const labels = makeCanvas(size, size);
     const labelsCtx = labels.getContext('2d');
     labelsCtx.fillStyle = '#1a2420';
     labelsCtx.fillRect(0, 0, size, size);
+    drawWater(labelsCtx, water, info, size, 0.95);
     drawRoads(labelsCtx, roads, info, size, 0.9);
     drawBuildingOutlines(labelsCtx, buildings, info, size, 0.35);
     if (useLabels) drawLabels(labelsCtx, places, roads, info, size);
 
     const overlay = makeCanvas(size, size);
     const overlayCtx = overlay.getContext('2d');
+    drawWater(overlayCtx, water, info, size, 0.7);
     drawRoads(overlayCtx, roads, info, size, 0.9);
     drawBuildingOutlines(overlayCtx, buildings, info, size, 0.35);
     if (useLabels) drawLabels(overlayCtx, places, roads, info, size);
@@ -1769,20 +1922,82 @@ out skel qt;`;
     return Math.log(Math.tan((90 + lat) * Math.PI / 360)) * 20037508.34 / Math.PI;
   }
 
+  function imageIsBlank(image) {
+    try {
+      const probe = makeCanvas(8, 8);
+      const context = probe.getContext('2d', { willReadFrequently: true });
+      context.drawImage(image, 0, 0, 8, 8);
+      const data = context.getImageData(0, 0, 8, 8).data;
+      let low = 255, high = 0, total = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        const value = Math.max(data[i], data[i + 1], data[i + 2]);
+        low = Math.min(low, value);
+        high = Math.max(high, value);
+        total += value;
+      }
+      return high - low < 3 || total / (data.length / 4) < 4;
+    } catch (error) {
+      return false;
+    }
+  }
+
   async function fetchSatellite(info, size) {
     const requestSize = Math.min(2048, size);
+    const halfW = Math.max(1, Math.floor(requestSize / 2));
+    const halfH = Math.max(1, Math.floor(requestSize / 2));
+    const widths = [halfW, requestSize - halfW];
+    const heights = [halfH, requestSize - halfH];
     const x1 = mercatorX(info.west), y1 = mercatorY(info.south);
     const x2 = mercatorX(info.east), y2 = mercatorY(info.north);
-    const params = new URLSearchParams({
-      SERVICE: 'WMS', REQUEST: 'GetMap', VERSION: '1.3.0',
-      LAYERS: 's2cloudless-2025_3857', STYLES: '', CRS: 'EPSG:3857',
-      BBOX: `${x1.toFixed(3)},${y1.toFixed(3)},${x2.toFixed(3)},${y2.toFixed(3)}`,
-      WIDTH: String(requestSize), HEIGHT: String(requestSize), FORMAT: 'image/jpeg',
-    });
-    const bytes = await requestBytes('https://tiles.maps.eox.at/wms?' + params.toString());
-    const image = await loadImage(bytes, 'image/jpeg');
+    const xs = [x1, (x1 + x2) / 2, x2];
+    const ys = [y2, (y1 + y2) / 2, y1];
     const canvas = makeCanvas(size, size);
-    canvas.getContext('2d').drawImage(image, 0, 0, size, size);
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#18231f';
+    ctx.fillRect(0, 0, size, size);
+    const loaded = [];
+    const missing = [];
+    for (let row = 0; row < 2; row++) {
+      for (let col = 0; col < 2; col++) {
+        const w = widths[col], h = heights[row];
+        const px = col ? widths[0] : 0;
+        const py = row ? heights[0] : 0;
+        const params = new URLSearchParams({
+          SERVICE: 'WMS', REQUEST: 'GetMap', VERSION: '1.3.0',
+          LAYERS: 's2cloudless-2025_3857', STYLES: '', CRS: 'EPSG:3857',
+          BBOX: `${xs[col].toFixed(3)},${ys[row + 1].toFixed(3)},${xs[col + 1].toFixed(3)},${ys[row].toFixed(3)}`,
+          WIDTH: String(w), HEIGHT: String(h), FORMAT: 'image/jpeg',
+        });
+        let image = null;
+        let lastError = null;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            const bytes = await requestBytes('https://tiles.maps.eox.at/wms?' + params.toString(), { timeout: 90000 });
+            const candidate = await loadImage(bytes, 'image/jpeg');
+            if (imageIsBlank(candidate)) throw new Error('EOX WMS: пустой тайл');
+            image = candidate;
+            break;
+          } catch (error) {
+            lastError = error;
+            if (attempt < 2) await sleep(1000 * (attempt + 1));
+          }
+        }
+        if (image) {
+          loaded.push({ image, px, py, w, h });
+          ctx.drawImage(image, px, py, w, h);
+        } else {
+          missing.push({ px, py, w, h, error: lastError });
+        }
+      }
+    }
+    if (!loaded.length) throw new Error('EOX WMS: все тайлы недоступны после 3 попыток');
+    for (const tile of missing) {
+      const nearest = loaded.reduce((best, item) => {
+        const distance = (item.px - tile.px) ** 2 + (item.py - tile.py) ** 2;
+        return distance < best.distance ? { item, distance } : best;
+      }, { item: loaded[0], distance: Infinity }).item;
+      ctx.drawImage(nearest.image, tile.px, tile.py, tile.w, tile.h);
+    }
     return canvas;
   }
 
@@ -1822,10 +2037,10 @@ out skel qt;`;
     return canvas;
   }
 
-  async function buildTextures(info, terrain, buildings, roads, places, options) {
+  async function buildTextures(info, terrain, buildings, roads, places, options, water) {
     setProgress(0.5, t('progress.textures'));
     const size = options.textureSize;
-    const canvases = buildTextureCanvases(info, buildings, roads, places, size, options.labels);
+    const canvases = buildTextureCanvases(info, buildings, roads, places, size, options.labels, water);
     let satellite = null;
     if (options.satellite) {
       setProgress(0.56, t('progress.satellite'));
@@ -1887,6 +2102,7 @@ out skel qt;`;
     addText(`${name}/meta.json`, 'application/json', metaText);
     addBytes(`${name}/textures/labels.png`, 'image/png', textures.labelsBytes);
     addBytes(`${name}/textures/labels_overlay.png`, 'image/png', textures.overlayBytes);
+    addBytes(`${name}/hybrid.jpg`, 'image/jpeg', textures.hybridBytes);
     addBytes(`${name}/textures/hybrid.jpg`, 'image/jpeg', textures.hybridBytes);
     if (textures.satelliteBytes) addBytes(`${name}/textures/satellite.jpg`, 'image/jpeg', textures.satelliteBytes);
     if (textures.reliefBytes) addBytes(`${name}/textures/relief.jpg`, 'image/jpeg', textures.reliefBytes);
@@ -1894,7 +2110,7 @@ out skel qt;`;
   }
 
   function buildObjFor(groups, name) {
-    const texture = 'textures/hybrid.jpg';
+    const texture = 'hybrid.jpg';
     return D.buildObj(groups, { name, texture }).obj;
   }
 
@@ -1903,13 +2119,15 @@ out skel qt;`;
     return [
       `newmtl ${terrain}`,
       'Ka 1.000 1.000 1.000', 'Kd 1.000 1.000 1.000', 'Ks 0 0 0', 'd 1.0', 'illum 1',
-      'map_Kd textures/hybrid.jpg', '',
+      'map_Kd hybrid.jpg', '',
       'newmtl building',
       'Kd 0.560 0.560 0.560', 'Ks 0 0 0', 'd 1.0', 'illum 1', '',
       'newmtl road',
       'Kd 0.230 0.230 0.235', 'Ks 0 0 0', 'd 1.0', 'illum 1', '',
       'newmtl rail',
       'Kd 0.230 0.170 0.130', 'Ks 0 0 0', 'd 1.0', 'illum 1', '',
+      'newmtl water',
+      'Kd 0.200 0.460 0.650', 'Ks 0 0 0', 'd 1.0', 'illum 1', '',
     ].join('\n') + '\n';
   }
 
@@ -1917,10 +2135,10 @@ out skel qt;`;
     return groups.reduce((sum, group) => sum + Math.floor(group.indices.length / 3), 0);
   }
 
-  function makeMeta(name, info, terrain, groups, buildings, roads, textures, outputs, options) {
+  function makeMeta(name, info, terrain, groups, buildings, roads, water, textures, outputs, options) {
     return JSON.stringify({
       name,
-      generator: '3Dmaps standalone 0.2.10',
+      generator: '3Dmaps standalone 0.2.11',
       bbox: [info.south, info.west, info.north, info.east],
       area_km2: Number(info.areaKm2.toFixed(4)),
       terrain_spacing: Number(terrain.spacing.toFixed(2)),
@@ -1937,6 +2155,7 @@ out skel qt;`;
         buildings: buildings.length,
         roads: roads.filter((road) => road.kind !== 'rail').length,
         railways: roads.filter((road) => road.kind === 'rail').length,
+        water: water.length,
         triangles: countTriangles(groups),
       },
       warnings: state.warnings,
@@ -1984,6 +2203,7 @@ out skel qt;`;
         buildings: $('buildings').checked,
         roads: $('roads').checked,
         railways: $('railways').checked,
+        water: $('water').checked,
         textureSize,
         spacing,
         heightScale,
@@ -2001,14 +2221,16 @@ out skel qt;`;
       let roads = options.roads || options.railways ? extractRoads(osm, info) : [];
       if (!options.roads) roads = roads.filter((road) => road.kind === 'rail');
       if (!options.railways) roads = roads.filter((road) => road.kind !== 'rail');
+      const water = options.water ? extractWater(osm, info) : [];
       const places = extractPlaces(osm, info);
       setProgress(0.49, t('progress.geometry'));
       await nextFrame();
       const groups = [D.terrainMesh(terrain)];
+      if (water.length) groups.push(D.waterMesh(water, terrain));
       if (buildings.length) groups.push(D.buildingMesh(buildings, terrain));
       groups.push(...D.roadMesh(roads, terrain));
       state.groups = groups;
-      const textureCanvases = await buildTextures(info, terrain, buildings, roads, places, options);
+      const textureCanvases = await buildTextures(info, terrain, buildings, roads, places, options, water);
       setProgress(0.7, t('progress.pack'));
       const labelsBytes = await canvasBytes(textureCanvases.labels, 'image/png');
       const overlayBytes = await canvasBytes(textureCanvases.overlay, 'image/png');
@@ -2024,14 +2246,14 @@ out skel qt;`;
         labels: textureCanvases.labels,
       };
       const outputs = buildOutputs(name, info, terrain, groups, textures, hybridBytes, heightmap, '');
-      const meta = makeMeta(name, info, terrain, groups, buildings, roads, textures, outputs, options);
+      const meta = makeMeta(name, info, terrain, groups, buildings, roads, water, textures, outputs, options);
       const metaItem = outputs.find((item) => item.path.endsWith('/meta.json'));
       metaItem.data = meta;
       metaItem.size = textBytes(meta).length;
       state.outputs = outputs;
       state.hybridCanvas = textureCanvases.hybrid;
       setProgress(0.88, t('progress.done'));
-      showResult(groups, outputs, terrain, buildings, roads);
+      showResult(groups, outputs, terrain, buildings, roads, water);
       setProgress(1, t('progress.done'));
       $('statusTitle').textContent = t('status.done');
     } catch (error) {
@@ -2044,13 +2266,14 @@ out skel qt;`;
     }
   }
 
-  function showResult(groups, outputs, terrain, buildings, roads) {
+  function showResult(groups, outputs, terrain, buildings, roads, water) {
     $('result').hidden = false;
     state.resultSummary = {
       area: state.info.areaKm2,
       triangles: groups.reduce((sum, group) => sum + Math.floor(group.indices.length / 3), 0),
       buildings: buildings.length,
       roads: roads.length,
+      water: water.length,
     };
     renderResultSummary();
     const files = $('files');
@@ -2078,7 +2301,7 @@ out skel qt;`;
     $('saveAllBtn').disabled = outputs.length === 0;
     $('saveGlbBtn').disabled = outputs.length === 0;
     $('saveObjBtn').disabled = outputs.length === 0;
-    state.preview = { groups, terrain, buildings, roads, texture: state.hybridCanvas };
+    state.preview = { groups, terrain, buildings, roads, water, texture: state.hybridCanvas };
     state.previewState.ready = false;
     $('previewWrap').hidden = true;
   }
@@ -2110,7 +2333,7 @@ out skel qt;`;
     if (!state.outputs.length) return;
     let items = state.outputs.filter((item) => extensions.some((ext) => item.path.endsWith(ext)));
     if (includeTextures) {
-      const textures = state.outputs.filter((item) => item.path.includes('/textures/'));
+      const textures = state.outputs.filter((item) => item.path.includes('/textures/') || item.path.endsWith('/hybrid.jpg'));
       items = items.concat(textures.filter((item) => !items.includes(item)));
     }
     items.forEach((item, index) => {
@@ -2310,6 +2533,7 @@ out skel qt;`;
       [t('result.triangles'), data.triangles.toLocaleString(lang === 'ru' ? 'ru-RU' : 'en-US')],
       [t('result.buildings'), String(data.buildings)],
       [t('result.roads'), String(data.roads)],
+      [t('result.water'), String(data.water || 0)],
     ];
     for (const [label, value] of items) {
       const item = document.createElement('div');

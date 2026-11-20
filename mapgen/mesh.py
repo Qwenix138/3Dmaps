@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Iterable
 
 import numpy as np
@@ -9,6 +8,7 @@ import mapbox_earcut as earcut
 from shapely.geometry import MultiPolygon, Polygon
 
 from .elevation import TerrainGrid
+from .geo import web_mercator_meters
 from .errors import ValidationError
 
 
@@ -91,6 +91,53 @@ class Scene:
         return sum(len(mesh.faces) for mesh in self.meshes)
 
 
+def densify_coords(
+    coords: list[tuple[float, float]],
+    max_step: float,
+) -> list[tuple[float, float]]:
+    if len(coords) < 2 or max_step <= 0:
+        return list(coords)
+    result = [coords[0]]
+    step = max(0.5, float(max_step))
+    for start, end in zip(coords[:-1], coords[1:]):
+        dx = end[0] - start[0]
+        dy = end[1] - start[1]
+        length = float(np.hypot(dx, dy))
+        count = max(1, int(np.ceil(length / step)))
+        for index in range(1, count + 1):
+            t = index / count
+            point = (start[0] + dx * t, start[1] + dy * t)
+            if point != result[-1]:
+                result.append(point)
+    return result
+
+
+def densify_ring(
+    coords: list[tuple[float, float]],
+    max_step: float,
+) -> list[tuple[float, float]]:
+    ring = _clean_ring(list(coords))
+    if len(ring) < 3:
+        return ring
+    return _clean_ring(densify_coords(ring + [ring[0]], max_step))
+
+
+def densify_polygon(polygon: Polygon, max_step: float) -> Polygon:
+    exterior = densify_ring(list(polygon.exterior.coords), max_step)
+    if len(exterior) < 3:
+        return polygon
+    holes = []
+    for interior in polygon.interiors:
+        ring = densify_ring(list(interior.coords), max_step)
+        if len(ring) >= 3:
+            holes.append(ring)
+    try:
+        result = Polygon(exterior, holes)
+        return result if result.is_valid else polygon
+    except Exception:
+        return polygon
+
+
 def _clean_ring(coords: list[tuple[float, float]]) -> list[tuple[float, float]]:
     result: list[tuple[float, float]] = []
     for point in coords:
@@ -147,10 +194,17 @@ def build_terrain_mesh(terrain: TerrainGrid) -> MeshData:
             d = a + grid.nx
             faces.append((a, b, c))
             faces.append((a, c, d))
-    u = xx / grid.x_max if grid.x_max else xx * 0
-    v = yy / grid.y_max if grid.y_max else yy * 0
-    u = (xx - grid.x_min) / max(1e-9, grid.x_max - grid.x_min)
-    v = (yy - grid.y_min) / max(1e-9, grid.y_max - grid.y_min)
+    if terrain.bbox is not None:
+        lons, lats = terrain.projection.to_geo_many(xx.ravel(), yy.ravel())
+        west, south = web_mercator_meters(terrain.bbox.west, terrain.bbox.south)
+        east, north = web_mercator_meters(terrain.bbox.east, terrain.bbox.north)
+        mx = 6378137.0 * np.radians(lons)
+        my = 6378137.0 * np.log(np.tan(np.pi / 4.0 + np.radians(lats) / 2.0))
+        u = (mx - west) / max(1e-9, east - west)
+        v = (my - south) / max(1e-9, north - south)
+    else:
+        u = (xx - grid.x_min) / max(1e-9, grid.x_max - grid.x_min)
+        v = (yy - grid.y_min) / max(1e-9, grid.y_max - grid.y_min)
     uvs = np.column_stack((u.ravel(), v.ravel()))
     dz_dy, dz_dx = np.gradient(z, grid.ys, grid.xs, edge_order=1)
     normals = np.dstack((-dz_dx, -dz_dy, np.ones_like(z)))

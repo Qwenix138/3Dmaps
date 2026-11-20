@@ -10,7 +10,7 @@ from typing import Callable
 
 from . import __version__
 from .buildings import build_building_mesh, extract_buildings
-from .config import GenerationOptions
+from .config import LAYER_OFFSETS, GenerationOptions
 from .elevation import load_terrain, save_heightmap
 from .errors import MapgenError
 from .export import export_glb, export_obj
@@ -18,6 +18,7 @@ from .mesh import Scene, build_terrain_mesh
 from .osm import fetch_osm
 from .roads import build_road_mesh, extract_roads
 from .textures import build_textures
+from .water import build_water_mesh, extract_water
 
 
 def _slug(value: str) -> str:
@@ -64,15 +65,26 @@ def generate(
 
     building_list = extract_buildings(data, terrain.projection, options) if options.buildings else []
     road_list = extract_roads(data, terrain.projection, options)
-    _progress(progress, 0.54, f"Здания: {len(building_list)}, дороги: {len(road_list)}")
+    water_list = extract_water(data, terrain.projection, options) if options.water else []
+    _progress(
+        progress,
+        0.54,
+        f"Здания: {len(building_list)}, дороги: {len(road_list)}, вода: {len(water_list)}",
+    )
 
     meshes = [build_terrain_mesh(terrain)]
+    if water_list:
+        meshes.append(build_water_mesh(water_list, terrain, LAYER_OFFSETS["water"]))
     if building_list:
         meshes.append(build_building_mesh(building_list, terrain))
     if options.roads:
-        meshes.append(build_road_mesh(road_list, terrain, "road"))
+        meshes.append(
+            build_road_mesh(road_list, terrain, "road", LAYER_OFFSETS["road"])
+        )
     if options.railways:
-        meshes.append(build_road_mesh(road_list, terrain, "rail"))
+        meshes.append(
+            build_road_mesh(road_list, terrain, "rail", LAYER_OFFSETS["rail"])
+        )
     meshes = [mesh for mesh in meshes if mesh.vertices and mesh.faces]
     if not meshes:
         raise MapgenError("Не удалось построить геометрию")
@@ -88,6 +100,7 @@ def generate(
         data,
         terrain,
         out_dir,
+        water=water_list,
         use_satellite=options.satellite,
         use_labels=options.labels,
         satellite_source=options.satellite_source,
@@ -103,6 +116,14 @@ def generate(
     obj_path, mtl_path = export_obj(scene, out_dir, textures, name, main_variant)
     glb_path = export_glb(scene, out_dir, textures, name, main_variant)
     files = [obj_path, mtl_path, glb_path, textures.labels, textures.overlay]
+    main_texture = {
+        "satellite": textures.satellite,
+        "labels": textures.labels,
+        "hybrid": textures.hybrid,
+        "relief": textures.relief,
+    }.get(main_variant)
+    if main_texture:
+        files.append(out_dir / f"{name}_{main_variant}{Path(main_texture).suffix}")
     if textures.satellite:
         files.append(textures.satellite)
     if textures.hybrid:
@@ -112,16 +133,18 @@ def generate(
 
     variants = []
     if options.bbox.area_km2 <= 25.0 and scene.triangle_count <= 900_000:
-        labels_obj, _ = export_obj(
+        labels_obj, labels_mtl = export_obj(
             scene, out_dir, textures, f"{name}_labels", "labels"
         )
-        files.append(labels_obj)
+        files.extend([labels_obj, labels_mtl])
+        files.append(out_dir / f"{name}_labels_labels{textures.labels.suffix}")
         variants.append(labels_obj.name)
         if textures.hybrid:
-            hybrid_obj, _ = export_obj(
+            hybrid_obj, hybrid_mtl = export_obj(
                 scene, out_dir, textures, f"{name}_hybrid", "hybrid"
             )
-            files.append(hybrid_obj)
+            files.extend([hybrid_obj, hybrid_mtl])
+            files.append(out_dir / f"{name}_hybrid_hybrid{textures.hybrid.suffix}")
             variants.append(hybrid_obj.name)
     _progress(progress, 0.88, "Запись метаданных")
 
@@ -157,6 +180,7 @@ def generate(
             "buildings": len(building_list),
             "roads": sum(1 for road in road_list if road.material == "road"),
             "railways": sum(1 for road in road_list if road.material == "rail"),
+            "water": len(water_list),
             "triangles": scene.triangle_count,
             "osm_nodes": len(data.nodes),
             "osm_ways": len(data.ways),

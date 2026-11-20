@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -16,6 +17,7 @@ from .elevation import TerrainGrid
 from .geo import Grid, LocalProjection
 from .osm import OsmData
 from .roads import RoadWay
+from .water import WaterBody
 
 EOX_WMS = "https://tiles.maps.eox.at/wms"
 EOX_ATTRIBUTION = "Sentinel-2 cloudless by EOX IT Services GmbH, CC BY-NC-SA 4.0"
@@ -148,6 +150,27 @@ def _draw_roads(
         draw.line(points, fill=(*fill, alpha), width=width_px, joint="curve")
 
 
+def _draw_water(
+    draw: ImageDraw.ImageDraw,
+    water: list[WaterBody],
+    grid: Grid,
+    size: int,
+    fill: tuple[int, int, int, int],
+    outline: tuple[int, int, int, int],
+    hole_fill: tuple[int, int, int, int] = (0, 0, 0, 0),
+) -> None:
+    for body in water:
+        exterior = _ring_pixels(body.polygon.exterior.coords, grid, size)
+        if len(exterior) < 3:
+            continue
+        draw.polygon(exterior, fill=fill)
+        for interior in body.polygon.interiors:
+            hole = _ring_pixels(interior.coords, grid, size)
+            if len(hole) >= 3:
+                draw.polygon(hole, fill=hole_fill)
+        draw.line(exterior, fill=outline, width=max(1, size // 2048))
+
+
 def _draw_buildings(
     draw: ImageDraw.ImageDraw,
     buildings: list[Building],
@@ -247,9 +270,14 @@ def render_label_textures(
     grid: Grid,
     size: int,
     include_labels: bool = True,
+    water: list[WaterBody] | None = None,
 ) -> tuple[Image.Image, Image.Image]:
     base = Image.new("RGBA", (size, size), (239, 236, 230, 255))
     draw = ImageDraw.Draw(base)
+    _draw_water(
+        draw, water or [], grid, size,
+        (151, 190, 214, 255), (112, 151, 178, 255), (239, 236, 230, 255),
+    )
     _draw_buildings(draw, buildings, grid, size, (215, 211, 204, 255), (181, 174, 164, 255))
     _draw_roads(draw, roads, grid, size, alpha=255)
     places = _load_places(data, projection, grid, size)
@@ -258,11 +286,66 @@ def render_label_textures(
 
     overlay = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     odraw = ImageDraw.Draw(overlay)
+    _draw_water(odraw, water or [], grid, size, (68, 126, 165, 120), (46, 96, 132, 190))
     _draw_buildings(odraw, buildings, grid, size, (70, 70, 70, 35), (50, 50, 50, 110))
     _draw_roads(odraw, roads, grid, size, alpha=210)
     if include_labels:
         _draw_labels(odraw, places, roads, buildings, grid, size, (255, 255, 255, 255), (30, 30, 30, 220))
     return base, overlay
+
+
+def _download_eox_tile(
+    x1: float,
+    y1: float,
+    x2: float,
+    y2: float,
+    width: int,
+    height: int,
+    layer: str,
+    timeout: int,
+) -> Image.Image:
+    from io import BytesIO
+
+    params = {
+        "SERVICE": "WMS",
+        "REQUEST": "GetMap",
+        "VERSION": "1.3.0",
+        "LAYERS": layer,
+        "STYLES": "",
+        "CRS": "EPSG:3857",
+        "BBOX": f"{x1:.3f},{y1:.3f},{x2:.3f},{y2:.3f}",
+        "WIDTH": str(width),
+        "HEIGHT": str(height),
+        "FORMAT": "image/jpeg",
+    }
+    last_error: Exception | None = None
+    for attempt in range(3):
+        try:
+            response = requests.get(
+                EOX_WMS,
+                params=params,
+                timeout=timeout,
+                headers={"User-Agent": "3Dmaps/0.2 (+https://github.com/Qwenix138/3Dmaps)"},
+            )
+            if response.status_code != 200:
+                raise RuntimeError(
+                    f"EOX WMS HTTP {response.status_code}: {response.text[:200]}"
+                )
+            content_type = response.headers.get("content-type", "")
+            if "image" not in content_type:
+                raise RuntimeError(f"EOX WMS вернул не изображение: {content_type}")
+            image = Image.open(BytesIO(response.content)).convert("RGB")
+            if image.size != (width, height):
+                image = image.resize((width, height), Image.Resampling.LANCZOS)
+            stat = ImageStat.Stat(image)
+            if max(stat.stddev) < 2.0 or max(stat.mean) < 3.0:
+                raise RuntimeError("EOX WMS вернул пустое изображение")
+            return image
+        except Exception as exc:
+            last_error = exc
+            if attempt < 2:
+                time.sleep(1.2 * (attempt + 1))
+    raise RuntimeError(f"EOX WMS тайл не загружен после 3 попыток: {last_error}")
 
 
 def download_eox_satellite(
@@ -274,39 +357,39 @@ def download_eox_satellite(
     transformer = Transformer.from_crs(4326, 3857, always_xy=True)
     x1, y1 = transformer.transform(bbox.west, bbox.south)
     x2, y2 = transformer.transform(bbox.east, bbox.north)
-    params = {
-        "SERVICE": "WMS",
-        "REQUEST": "GetMap",
-        "VERSION": "1.3.0",
-        "LAYERS": layer,
-        "STYLES": "",
-        "CRS": "EPSG:3857",
-        "BBOX": f"{x1:.3f},{y1:.3f},{x2:.3f},{y2:.3f}",
-        "WIDTH": str(size),
-        "HEIGHT": str(size),
-        "FORMAT": "image/jpeg",
-    }
-    response = requests.get(
-        EOX_WMS,
-        params=params,
-        timeout=timeout,
-        headers={"User-Agent": "3Dmaps/0.1 (+https://github.com/)"},
-    )
-    if response.status_code != 200:
-        raise RuntimeError(f"EOX WMS HTTP {response.status_code}: {response.text[:200]}")
-    content_type = response.headers.get("content-type", "")
-    if "image" not in content_type:
-        raise RuntimeError(f"EOX WMS вернул не изображение: {content_type}")
-    from io import BytesIO
-
-    image = Image.open(BytesIO(response.content)).convert("RGB")
-    if image.size != (size, size):
-        image = image.resize((size, size), Image.Resampling.LANCZOS)
-    stat = ImageStat.Stat(image)
+    xm = (x1 + x2) / 2.0
+    ym = (y1 + y2) / 2.0
+    half_w = max(1, size // 2)
+    half_h = max(1, size // 2)
+    widths = [half_w, size - half_w]
+    heights = [half_h, size - half_h]
+    xs = [x1, xm, x2]
+    ys = [y2, ym, y1]
+    canvas = Image.new("RGB", (size, size), (24, 35, 31))
+    loaded: list[tuple[Image.Image, int, int, int, int]] = []
+    missing: list[tuple[int, int, int, int]] = []
+    for row in range(2):
+        for col in range(2):
+            px = 0 if col == 0 else widths[0]
+            py = 0 if row == 0 else heights[0]
+            tw, th = widths[col], heights[row]
+            try:
+                image = _download_eox_tile(
+                    xs[col], ys[row + 1], xs[col + 1], ys[row], tw, th, layer, timeout
+                )
+                loaded.append((image, px, py, tw, th))
+                canvas.paste(image, (px, py))
+            except Exception:
+                missing.append((px, py, tw, th))
+    if not loaded:
+        raise RuntimeError("EOX WMS не отдал ни одного тайла после 3 попыток")
+    for px, py, tw, th in missing:
+        nearest = min(loaded, key=lambda item: (item[1] - px) ** 2 + (item[2] - py) ** 2)
+        canvas.paste(nearest[0].resize((tw, th), Image.Resampling.LANCZOS), (px, py))
+    stat = ImageStat.Stat(canvas)
     if max(stat.stddev) < 2.0 or max(stat.mean) < 3.0:
         raise RuntimeError("EOX WMS вернул пустое изображение")
-    return image, EOX_ATTRIBUTION, EOX_LICENSE
-
+    return canvas, EOX_ATTRIBUTION, EOX_LICENSE
 
 def render_relief(terrain: TerrainGrid, size: int) -> Image.Image:
     z = terrain.z.astype(np.float64)
@@ -336,6 +419,7 @@ def build_textures(
     satellite_layer: str = "s2cloudless-2025_3857",
     custom_satellite: Path | None = None,
     progress=None,
+    water: list[WaterBody] | None = None,
 ) -> TextureSet:
     texture_dir = Path(out_dir) / "textures"
     texture_dir.mkdir(parents=True, exist_ok=True)
@@ -348,6 +432,7 @@ def build_textures(
         terrain.grid,
         size,
         include_labels=use_labels,
+        water=water,
     )
     labels_path = texture_dir / "labels.png"
     labels_img.convert("RGB").save(labels_path, optimize=True)

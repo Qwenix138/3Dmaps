@@ -25,6 +25,7 @@ class TerrainGrid:
     tiles: list[tuple[int, int, int]]
     base_elevation: float
     attribution: str
+    bbox: BBox | None = None
 
     @property
     def min_elevation(self) -> float:
@@ -188,6 +189,7 @@ def load_terrain(
         tiles=tiles,
         base_elevation=base,
         attribution=TERRARIUM_ATTRIBUTION,
+        bbox=bbox,
     )
 
 

@@ -9,7 +9,7 @@ from shapely.geometry import LineString, MultiLineString, Polygon
 from shapely.geometry.polygon import orient
 from shapely.ops import polygonize, unary_union
 
-from .config import GenerationOptions
+from .config import BUILDING_FOUNDATION_M, GenerationOptions
 from .elevation import TerrainGrid
 from .errors import ValidationError
 from .geo import LocalProjection
@@ -233,8 +233,9 @@ def build_building_mesh(
             sample_x = [p[0] for p in exterior_ring]
             sample_y = [p[1] for p in exterior_ring]
             elevations = terrain.sample(np.asarray(sample_x), np.asarray(sample_y))
-            base_z = float(np.min(elevations)) - terrain.base_elevation - 0.35
-            top_z = base_z + building.height
+            ground_z = float(np.min(elevations)) - terrain.base_elevation
+            base_z = ground_z - BUILDING_FOUNDATION_M
+            top_z = ground_z + building.height
 
             top_vertices = [(p[0], p[1], top_z) for p in flat]
             top_faces = [tuple(t) for t in triangles]

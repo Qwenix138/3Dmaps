@@ -4,9 +4,9 @@
 
 ## Status
 
-- Linux x86_64 — `.deb` and portable archive: `release/3Dmaps-0.2.10/3dmapgen_0.1.2_amd64.deb`, `release/3Dmaps-0.2.10/3dmapgen-linux-x86_64.tar.gz`.
-- Windows x86_64 — portable build with Python: `release/3Dmaps-0.2.10/3dmapgen-windows-x86_64.zip`.
-- Android — standalone WebView generator: `release/3Dmaps-0.2.10/3Dmaps-0.2.10.apk`.
+- Linux x86_64 — `.deb` and portable archive: `release/3Dmaps-0.2.11/3dmapgen_0.1.3_amd64.deb`, `release/3Dmaps-0.2.11/3dmapgen-linux-x86_64.tar.gz`.
+- Windows x86_64 — portable build with Python: `release/3Dmaps-0.2.11/3dmapgen-windows-x86_64.zip`.
+- Android — standalone WebView generator: `release/3Dmaps-0.2.11/3Dmaps-0.2.11.apk`.
 - GitHub Actions — Linux x86_64 and Windows x86_64 onefile builds when the repository is pushed.
 
 ## Linux and Windows via GitHub Actions
@@ -21,7 +21,7 @@ Download them from Actions → run → Artifacts.
 
 ## Portable Linux x86_64 and Windows x86_64 builds
 
-The builds in `release/3Dmaps-0.2.10/` do not require Python installed:
+The builds in `release/3Dmaps-0.2.11/` do not require Python installed:
 
 - `3dmapgen-linux-x86_64.tar.gz` — extract and run `./3Dmaps` (opens the UI in a browser) or `bin/3dmapgen` / `bin/3dmapgen-web`;
 - `3dmapgen-windows-x86_64.zip` — extract fully and run `3Dmaps.exe`; `3dmapgen.exe`, `3dmapgen-web.exe` and `.bat` wrappers are also included.
@@ -31,7 +31,7 @@ They bundle Python 3.14 and dependency wheels for the target platform. They are 
 ## Installing on Linux Mint / Ubuntu x86_64
 
 ```bash
-sudo apt install ./3dmapgen_0.1.2_amd64.deb
+sudo apt install ./3dmapgen_0.1.3_amd64.deb
 ```
 
 After installation, “3Dmaps” appears in the menu, the CLI is `3dmapgen`, and the web version is `3dmapgen-web`. The menu entry opens a local server at `127.0.0.1:8765`. Uninstall with `sudo apt remove 3dmapgen`.
@@ -63,7 +63,7 @@ MAPGEN_OUTPUT=/path/to/output MAPGEN_CACHE=/path/to/cache ./dist/3dmapgen-web
 
 ## Android
 
-Ready app: `release/3Dmaps-0.2.10/3Dmaps-0.2.10.apk`. It is standalone: no server, Termux or Python on the phone. Only internet access for OSM, Terrarium DEM and EOX satellite is required. Version 0.2.10 adds RU/EN, quality presets and a result summary.
+Ready app: `release/3Dmaps-0.2.11/3Dmaps-0.2.11.apk`. It is standalone: no server, Termux or Python on the phone. Only internet access for OSM, Terrarium DEM and EOX satellite is required. Version 0.2.11 adds OSM water, foundations, tessellation, reliable satellite loading, RU/EN, quality presets and a result summary.
 
 Build:
 
